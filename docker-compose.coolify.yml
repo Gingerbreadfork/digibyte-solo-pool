@@ -84,5 +84,7 @@ services:
     ports:
       - "3333:3333/tcp"
       - "8080/tcp"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     labels:
       - "coolify.managed=true"
