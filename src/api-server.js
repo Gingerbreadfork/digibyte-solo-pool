@@ -19,6 +19,10 @@ class ApiServer {
     this.sseClients = new Set();
     this.sseInterval = null;
 
+    // Stats logging interval (log metrics every 30 seconds by default)
+    this.statsLoggingInterval = null;
+    this.statsLoggingMs = parseInt(process.env.STATS_LOGGING_INTERVAL_MS || "30000", 10);
+
     // Metrics histograms (simple buckets for latency tracking)
     this.metrics = {
       requestCount: 0,
@@ -63,12 +67,19 @@ class ApiServer {
 
     // Start SSE broadcast interval (send updates every second)
     this.sseInterval = setInterval(() => this.broadcastToSSEClients(), 1000);
+
+    // Start stats logging interval (log metrics periodically even when dashboard closed)
+    this.statsLoggingInterval = setInterval(() => this.logStats(), this.statsLoggingMs);
   }
 
   stop() {
     if (this.sseInterval) {
       clearInterval(this.sseInterval);
       this.sseInterval = null;
+    }
+    if (this.statsLoggingInterval) {
+      clearInterval(this.statsLoggingInterval);
+      this.statsLoggingInterval = null;
     }
     // Close all SSE connections
     for (const client of this.sseClients) {
@@ -90,7 +101,7 @@ class ApiServer {
     // CORS headers
     if (this.config.apiCorsEnabled) {
       res.setHeader("Access-Control-Allow-Origin", this.config.apiCorsOrigin);
-      res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+      res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
       res.setHeader("Access-Control-Allow-Headers", "Content-Type");
     }
 
@@ -99,6 +110,12 @@ class ApiServer {
       res.writeHead(204);
       res.end();
       return;
+    }
+
+    // Handle POST /reset endpoint
+    if (req.method === "POST" && pathname === "/reset") {
+      this.resetStats();
+      return this.writeJson(res, 200, { success: true, message: "Stats reset successfully" });
     }
 
     // Track metrics
@@ -287,6 +304,81 @@ class ApiServer {
       }
     }
   }
+
+  logStats() {
+    const connections = this.stratumServer.snapshot();
+    const uptimeSec = Math.floor((Date.now() - this.startedAt) / 1000);
+
+    // Calculate hashrate estimate from share rate (if we have shares)
+    const totalShares = this.stats.sharesAccepted + this.stats.sharesRejected;
+    const hashrateEstimate = totalShares > 0
+      ? ((this.stats.sharesAccepted / uptimeSec) * 16384 * Math.pow(2, 32) / 600).toFixed(2) + " H/s"
+      : "0 H/s";
+
+    this.logger.info("Pool stats snapshot", {
+      uptime: formatDuration(uptimeSec),
+      connections: {
+        connected: connections.connected,
+        authorized: connections.authorized
+      },
+      shares: {
+        accepted: this.stats.sharesAccepted,
+        rejected: this.stats.sharesRejected,
+        rejectRate: totalShares > 0 ? ((this.stats.sharesRejected / totalShares) * 100).toFixed(2) + "%" : "0%",
+        stale: this.stats.sharesStale,
+        duplicate: this.stats.sharesDuplicate,
+        lowdiff: this.stats.sharesLowDiff
+      },
+      blocks: {
+        found: this.stats.blocksFound,
+        rejected: this.stats.blocksRejected
+      },
+      bestShare: this.stats.bestShareDifficulty > 0 ? {
+        difficulty: this.stats.bestShareDifficulty,
+        worker: this.stats.bestShareWorker,
+        age: this.stats.bestShareAt ? Math.floor((Date.now() - this.stats.bestShareAt) / 1000) + "s ago" : "never"
+      } : null,
+      hashrate: hashrateEstimate,
+      height: this.stats.currentHeight
+    });
+  }
+
+  resetStats() {
+    // Reset counters but preserve certain all-time stats
+    const bestShareDiff = this.stats.bestShareDifficulty;
+    const bestShareWorker = this.stats.bestShareWorker;
+    const bestShareAt = this.stats.bestShareAt;
+    const blocksFound = this.stats.blocksFound;
+    const lastFoundBlockHash = this.stats.lastFoundBlockHash;
+    const lastFoundBlockAt = this.stats.lastFoundBlockAt;
+
+    // Reset session stats
+    this.stats.templatesFetched = 0;
+    this.stats.jobBroadcasts = 0;
+    this.stats.sharesAccepted = 0;
+    this.stats.sharesRejected = 0;
+    this.stats.sharesStale = 0;
+    this.stats.sharesDuplicate = 0;
+    this.stats.sharesLowDiff = 0;
+    this.stats.blocksRejected = 0;
+    this.stats.lastTemplateAt = 0;
+    this.stats.lastBroadcastAt = 0;
+    this.stats.lastShareAt = 0;
+    this.stats.lastShareWorker = null;
+
+    // Restore all-time bests
+    this.stats.bestShareDifficulty = bestShareDiff;
+    this.stats.bestShareWorker = bestShareWorker;
+    this.stats.bestShareAt = bestShareAt;
+    this.stats.blocksFound = blocksFound;
+    this.stats.lastFoundBlockHash = lastFoundBlockHash;
+    this.stats.lastFoundBlockAt = lastFoundBlockAt;
+
+    // Reset pool start time for session stats
+    this.startedAt = Date.now();
+
+    this.logger.info("Pool stats reset", { preservedBestShare: bestShareDiff > 0 });
+  }
 }
 
 function pushMetric(lines, key, value) {
@@ -305,6 +397,17 @@ function buildDashboardUrl(host, port, protocol) {
 
 function writeAlwaysLine(line) {
   process.stdout.write(String(line) + "\n");
+}
+
+function formatDuration(seconds) {
+  const d = Math.floor(seconds / 86400);
+  const h = Math.floor((seconds % 86400) / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+  if (d > 0) return `${d}d ${h}h ${m}m ${s}s`;
+  if (h > 0) return `${h}h ${m}m ${s}s`;
+  if (m > 0) return `${m}m ${s}s`;
+  return `${s}s`;
 }
 
 module.exports = { ApiServer };

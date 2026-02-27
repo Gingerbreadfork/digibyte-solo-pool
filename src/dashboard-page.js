@@ -1177,6 +1177,7 @@ function renderDashboardHtml() {
           <div class="controls">
             <button id="theme-toggle" class="icon-btn" title="Toggle theme" aria-label="Toggle theme">🌙</button>
             <button id="sound-toggle" class="icon-btn" title="Toggle sound notifications" aria-label="Toggle sound">🔔</button>
+            <button id="reset-stats" class="icon-btn" title="Reset session stats (keeps all-time bests)" aria-label="Reset stats">🔄</button>
           </div>
         </div>
       </div>
@@ -1502,6 +1503,40 @@ function renderDashboardHtml() {
       prefs.soundEnabled = !prefs.soundEnabled;
       localStorage.setItem('pool-sound', prefs.soundEnabled);
       e.target.classList.toggle('active', prefs.soundEnabled);
+    });
+
+    // Reset stats button
+    d.getElementById('reset-stats').addEventListener('click', async (e) => {
+      if (!confirm('Reset session stats? This will clear accepted/rejected shares and uptime, but keep your all-time best share and blocks found.')) {
+        return;
+      }
+
+      e.target.disabled = true;
+      e.target.style.opacity = '0.5';
+
+      try {
+        const res = await fetch('/reset', { method: 'POST' });
+        const data = await res.json();
+
+        if (data.success) {
+          e.target.textContent = '✓';
+          setTimeout(() => {
+            e.target.textContent = '🔄';
+            e.target.disabled = false;
+            e.target.style.opacity = '1';
+          }, 2000);
+        } else {
+          throw new Error('Reset failed');
+        }
+      } catch (err) {
+        console.error('Reset failed:', err);
+        e.target.textContent = '✗';
+        setTimeout(() => {
+          e.target.textContent = '🔄';
+          e.target.disabled = false;
+          e.target.style.opacity = '1';
+        }, 2000);
+      }
     });
 
     // Copy button handlers
