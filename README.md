@@ -72,7 +72,7 @@ This implementation is designed to minimize pool-side overhead, but it cannot gu
 ## Quick start
 
 1. Create `.env` from `.env.example`.
-2. Set `POOL_PAYOUT_ADDRESS` (required, unless using `POOL_PAYOUT_SCRIPT_HEX`).
+2. Set `POOL_PAYOUT_ADDRESS` to your DigiByte address (required).
 3. Ensure DigiByte Core RPC is reachable from this host/container.
 4. Start with Docker/Coolify or local Node.
 
@@ -388,8 +388,8 @@ EXTRANONCE2_SIZE=8                       # Extranonce2 size in bytes (2-16)
 ### Pool Configuration
 
 ```bash
-POOL_PAYOUT_ADDRESS=dgb1...              # Your DigiByte payout address (bech32 or legacy)
-POOL_PAYOUT_SCRIPT_HEX=                  # Optional: Direct scriptPubKey hex (bypasses address validation)
+POOL_PAYOUT_ADDRESS=dgb1...              # Your DigiByte payout address (REQUIRED)
+POOL_PAYOUT_SCRIPT_HEX=                  # Advanced: Raw scriptPubKey hex (optional, leave empty)
 POOL_TAG=/your-pool-tag/                 # Pool identifier in coinbase (max ~20 chars)
 ```
 
