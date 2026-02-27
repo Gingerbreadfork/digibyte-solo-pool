@@ -1,0 +1,39 @@
+node_modules/
+
+# Local runtime config / secrets
+.env
+.env.local
+.env.*.local
+
+# TLS/SSL certificates and keys
+*.pem
+*.key
+*.crt
+*.cert
+*.p12
+*.pfx
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+
+# Backup files
+*.backup
+*.bak
+*.tmp
+
+# Test / coverage artifacts
+coverage/
+.nyc_output/

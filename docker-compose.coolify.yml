@@ -1,0 +1,86 @@
+version: "3.9"
+
+# Coolify Docker Compose configuration for DigiByte Solo Mining Pool
+#
+# All environment variables can be set in Coolify's environment variable settings.
+# Variables use defaults via ${VAR_NAME:-default_value} syntax.
+# Only NODE_RPC_USER, NODE_RPC_PASS, and POOL_PAYOUT_ADDRESS are required.
+#
+# To customize, set environment variables in Coolify UI without the :- syntax.
+# Example: NODE_RPC_HOST=192.168.1.100
+
+services:
+  dgb-solo-pool:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: dgb-solo-pool
+    restart: unless-stopped
+    environment:
+      # === DigiByte Node RPC Configuration ===
+      NODE_RPC_HOST: ${NODE_RPC_HOST:-127.0.0.1}
+      NODE_RPC_PORT: ${NODE_RPC_PORT:-14022}
+      NODE_RPC_USER: ${NODE_RPC_USER}
+      NODE_RPC_PASS: ${NODE_RPC_PASS}
+      NODE_RPC_TLS: ${NODE_RPC_TLS:-false}
+      NODE_RPC_TIMEOUT_MS: ${NODE_RPC_TIMEOUT_MS:-5000}
+      NODE_RPC_LONGPOLL_TIMEOUT_MS: ${NODE_RPC_LONGPOLL_TIMEOUT_MS:-90000}
+      ALLOW_NODE_POW_ALGO_MISMATCH: ${ALLOW_NODE_POW_ALGO_MISMATCH:-false}
+
+      # === Stratum Server Configuration ===
+      STRATUM_HOST: ${STRATUM_HOST:-0.0.0.0}
+      STRATUM_PORT: ${STRATUM_PORT:-3333}
+      STRATUM_PREVHASH_MODE: ${STRATUM_PREVHASH_MODE:-stratum}
+      SOCKET_IDLE_TIMEOUT_MS: ${SOCKET_IDLE_TIMEOUT_MS:-300000}
+      MAX_CLIENTS: ${MAX_CLIENTS:-1000}
+      MAX_CLIENTS_PER_IP: ${MAX_CLIENTS_PER_IP:-10}
+      CONNECTION_RATE_LIMIT_PER_MIN: ${CONNECTION_RATE_LIMIT_PER_MIN:-60}
+
+      # === API/Dashboard Configuration ===
+      API_HOST: ${API_HOST:-0.0.0.0}
+      API_PORT: ${API_PORT:-8080}
+      API_TLS: ${API_TLS:-false}
+      API_TLS_CERT: ${API_TLS_CERT:-}
+      API_TLS_KEY: ${API_TLS_KEY:-}
+      API_CORS_ENABLED: ${API_CORS_ENABLED:-true}
+      API_CORS_ORIGIN: ${API_CORS_ORIGIN:-*}
+
+      # === Mining Algorithm & Difficulty ===
+      POW_ALGO: ${POW_ALGO:-sha256d}
+      BASE_DIFFICULTY: ${BASE_DIFFICULTY:-16384}
+      MIN_DIFFICULTY: ${MIN_DIFFICULTY:-1}
+      ENABLE_VARDIFF: ${ENABLE_VARDIFF:-true}
+      VARDIFF_TARGET_SHARE_TIME_MS: ${VARDIFF_TARGET_SHARE_TIME_MS:-15000}
+      VARDIFF_RETARGET_EVERY_SHARES: ${VARDIFF_RETARGET_EVERY_SHARES:-4}
+      VARDIFF_MAX_DIFFICULTY: ${VARDIFF_MAX_DIFFICULTY:-16384}
+      ENABLE_NEAR_CANDIDATE_PREWARM: ${ENABLE_NEAR_CANDIDATE_PREWARM:-true}
+      NEAR_CANDIDATE_PREWARM_FACTOR: ${NEAR_CANDIDATE_PREWARM_FACTOR:-256}
+      EXTRANONCE1_SIZE: ${EXTRANONCE1_SIZE:-4}
+      EXTRANONCE2_SIZE: ${EXTRANONCE2_SIZE:-8}
+
+      # === Pool Payout Configuration ===
+      POOL_PAYOUT_ADDRESS: ${POOL_PAYOUT_ADDRESS}
+      POOL_PAYOUT_SCRIPT_HEX: ${POOL_PAYOUT_SCRIPT_HEX:-}
+      POOL_TAG: ${POOL_TAG:-/gbf-solo/}
+
+      # === Miner Authentication ===
+      ALLOW_ANY_USER: ${ALLOW_ANY_USER:-true}
+      MINER_AUTH_TOKEN: ${MINER_AUTH_TOKEN:-}
+
+      # === Template Management ===
+      ENABLE_LONGPOLL: ${ENABLE_LONGPOLL:-true}
+      TEMPLATE_POLL_MS: ${TEMPLATE_POLL_MS:-1000}
+      TEMPLATE_POLL_MS_LONGPOLL_HEALTHY: ${TEMPLATE_POLL_MS_LONGPOLL_HEALTHY:-5000}
+      LONGPOLL_HEALTHY_GRACE_MS: ${LONGPOLL_HEALTHY_GRACE_MS:-120000}
+      TEMPLATE_FINGERPRINT_MODE: ${TEMPLATE_FINGERPRINT_MODE:-fast}
+      KEEP_OLD_JOBS: ${KEEP_OLD_JOBS:-8}
+      MAX_JOB_SUBMISSIONS_TRACKED: ${MAX_JOB_SUBMISSIONS_TRACKED:-50000}
+      GBT_RULES: ${GBT_RULES:-segwit}
+
+      # === Debugging & Logging ===
+      DEBUG_SHARE_VALIDATION: ${DEBUG_SHARE_VALIDATION:-false}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+
+    ports:
+      - "3333:3333/tcp"
+      - "8080:8080/tcp"
