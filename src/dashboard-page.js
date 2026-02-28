@@ -853,11 +853,14 @@ function renderDashboardHtml() {
     .worker-item {
       border-radius: 14px;
       border: 1px solid var(--line-soft);
-      background: linear-gradient(140deg, rgba(15, 33, 51, 0.82), rgba(8, 22, 36, 0.84));
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.025), rgba(255, 255, 255, 0.01)),
+        rgba(11, 11, 11, 0.86);
       padding: 12px;
       display: grid;
       gap: 9px;
       min-width: 0;
+      box-shadow: inset 0 1px 8px rgba(255, 255, 255, 0.02);
     }
 
     [data-theme="light"] .worker-item {
@@ -896,7 +899,7 @@ function renderDashboardHtml() {
     .worker-stat {
       border-radius: 10px;
       border: 1px solid var(--line-soft);
-      background: rgba(9, 23, 38, 0.5);
+      background: rgba(255, 255, 255, 0.02);
       padding: 7px;
       display: grid;
       gap: 4px;
@@ -942,9 +945,9 @@ function renderDashboardHtml() {
     }
 
     .hashrate-badge {
-      color: var(--cyan);
-      border-color: rgba(48, 213, 255, 0.4);
-      background: rgba(48, 213, 255, 0.13);
+      color: var(--ink-1);
+      border-color: var(--line);
+      background: rgba(255, 255, 255, 0.05);
     }
 
     .efficiency-badge {
@@ -1801,6 +1804,8 @@ function renderDashboardHtml() {
     let lastError = "";
     let lastBlockCount = 0;
     let shareTimeline = [];
+    let timelineDirty = true;
+    let timelineNewSinceRender = 0;
     let animatedValues = new Map();
 
     // Worker hashrate tracking
@@ -2404,6 +2409,8 @@ function renderDashboardHtml() {
       if (shareTimeline.length > MAX_TIMELINE_ITEMS) {
         shareTimeline.shift();
       }
+      timelineDirty = true;
+      timelineNewSinceRender = Math.min(MAX_TIMELINE_ITEMS, timelineNewSinceRender + 1);
     }
 
     function addBlockToHistory(block) {
@@ -2588,13 +2595,18 @@ function renderDashboardHtml() {
     }
 
     function renderTimeline() {
-      const now = Date.now();
       const maxHeight = 100;
 
       if (shareTimeline.length === 0) {
+        if (!timelineDirty) return;
         refs.shareTimeline.innerHTML = '<div style="text-align: center; color: var(--ink-2); padding: 10px;">No recent shares</div>';
+        text(refs.timelineMeta, "last 0 shares");
+        timelineDirty = false;
+        timelineNewSinceRender = 0;
         return;
       }
+
+      if (!timelineDirty) return;
 
       // Count shares per time bucket
       const buckets = new Array(MAX_TIMELINE_ITEMS).fill(0);
@@ -2607,17 +2619,21 @@ function renderDashboardHtml() {
       }
 
       const maxBucket = Math.max(1, ...buckets);
+      const activeShares = shareTimeline.length;
+      const newStartIndex = Math.max(0, activeShares - timelineNewSinceRender);
 
       let html = '';
       for (let i = 0; i < buckets.length; i++) {
         const height = (buckets[i] / maxBucket) * maxHeight;
         const cls = bucketTypes[i] === 'rejected' ? 'rejected' : '';
-        const newCls = i === buckets.length - 1 && buckets[i] > 0 ? 'new' : '';
+        const newCls = (i >= newStartIndex && i < activeShares && buckets[i] > 0) ? 'new' : '';
         html += \`<div class="timeline-bar \${cls} \${newCls}" style="height: \${height}%"></div>\`;
       }
 
       refs.shareTimeline.innerHTML = html;
       text(refs.timelineMeta, "last " + shareTimeline.length + " shares");
+      timelineDirty = false;
+      timelineNewSinceRender = 0;
     }
 
     function renderLuckStats(job, derived) {
