@@ -1648,8 +1648,7 @@ function renderDashboardHtml() {
           </div>
         </div>
         <div class="hero-meta-strip">
-          <div class="meta-pill">Realtime <span>SSE stream</span></div>
-          <div class="meta-pill">Cadence <span>1s updates</span></div>
+          <div class="meta-pill">Transport <span>SSE stream</span></div>
           <div class="meta-pill">Mode <span>Solo SHA-256</span></div>
         </div>
         <article class="hero-signal card">
@@ -1848,7 +1847,6 @@ function renderDashboardHtml() {
     </section>
 
     <div class="footer">
-      <span>Real-time updates via Server-Sent Events.</span>
       <span id="foot-net">Waiting for data…</span>
     </div>
   </main>
