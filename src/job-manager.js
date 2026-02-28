@@ -38,6 +38,9 @@ class JobManager extends EventEmitter {
     this.longpollPromise = null;
     this.lastLongpollSuccessAt = 0;
     this.prevhashEpochSeq = 0;
+    this.templatePollFailureStreak = 0;
+    this.lastTemplatePollFailureAt = 0;
+    this.forceTemplateRefreshOnce = false;
   }
 
   async init() {
@@ -73,7 +76,7 @@ class JobManager extends EventEmitter {
       try {
         await this.refreshTemplate("poll");
       } catch (err) {
-        this.logger.warn("Template poll failed", { error: err.message });
+        // Failure details are logged/throttled in refreshTemplate().
       } finally {
         this.schedulePoll();
       }
@@ -83,15 +86,25 @@ class JobManager extends EventEmitter {
 
   startLongpollLoop() {
     const loop = async () => {
+      let longpollFailureStreak = 0;
       while (this.running) {
         try {
           // Don't measure longpoll latency - it's a blocking wait for new blocks (can be 30+ seconds)
           const tpl = await this.rpc.getBlockTemplate(this.longpollId);
+          longpollFailureStreak = 0;
           this.lastLongpollSuccessAt = nowMs();
           this.handleTemplate(tpl, "longpoll");
         } catch (err) {
-          this.logger.warn("Longpoll getblocktemplate failed", { error: err.message });
-          await sleep(1000);
+          longpollFailureStreak += 1;
+          const retryMs = backoffMs(longpollFailureStreak, 1000, 15000);
+          if (shouldLogFailure(longpollFailureStreak)) {
+            this.logger.warn("Longpoll getblocktemplate failed", {
+              error: err.message,
+              failureStreak: longpollFailureStreak,
+              retryMs
+            });
+          }
+          await sleep(retryMs);
         }
       }
     };
@@ -100,6 +113,12 @@ class JobManager extends EventEmitter {
 
   nextPollDelayMs() {
     const baseMs = Math.max(250, Number(this.config.templatePollMs || 1000));
+
+    // Back off polling while node RPC is unavailable.
+    if (this.templatePollFailureStreak > 0) {
+      return Math.max(baseMs, backoffMs(this.templatePollFailureStreak, baseMs, 10000));
+    }
+
     if (!this.config.enableLongpoll) return baseMs;
 
     const healthyPollMs = Math.max(baseMs, Number(this.config.templatePollMsLongpollHealthy || baseMs));
@@ -114,10 +133,45 @@ class JobManager extends EventEmitter {
   async refreshTemplate(source) {
     // Measure actual RPC latency (not longpoll which blocks waiting for new blocks)
     const startTime = nowMs();
-    const tpl = await this.rpc.getBlockTemplate(null);
+    let tpl;
+    try {
+      tpl = await this.rpc.getBlockTemplate(null);
+    } catch (err) {
+      this.recordTemplateFetchFailure(source, err);
+      throw err;
+    }
+
     const fetchMs = nowMs() - startTime;
     this.recordTemplateFetchLatency(fetchMs);
+    this.recordTemplateFetchSuccess(source, fetchMs);
     this.handleTemplate(tpl, source);
+  }
+
+  recordTemplateFetchFailure(source, err) {
+    this.lastTemplatePollFailureAt = nowMs();
+    this.templatePollFailureStreak += 1;
+    // Force longpoll to renegotiate after outage/restart scenarios.
+    this.longpollId = null;
+
+    if (shouldLogFailure(this.templatePollFailureStreak)) {
+      this.logger.warn("Template poll RPC unavailable", {
+        source,
+        error: err && err.message ? err.message : String(err),
+        failureStreak: this.templatePollFailureStreak
+      });
+    }
+  }
+
+  recordTemplateFetchSuccess(source, fetchMs) {
+    if (this.templatePollFailureStreak <= 0) return;
+    const recoveredAfter = this.templatePollFailureStreak;
+    this.templatePollFailureStreak = 0;
+    this.forceTemplateRefreshOnce = true;
+    this.logger.info("Template poll RPC recovered", {
+      source,
+      fetchMs,
+      recoveredAfterFailures: recoveredAfter
+    });
   }
 
   recordTemplateFetchLatency(fetchMs) {
@@ -158,7 +212,10 @@ class JobManager extends EventEmitter {
 
     const fingerprint = buildTemplateFingerprint(template, this.config.templateFingerprintMode);
 
-    if (fingerprint === this.lastTemplateFingerprint && source !== "startup") {
+    const forceRefresh = this.forceTemplateRefreshOnce;
+    this.forceTemplateRefreshOnce = false;
+
+    if (fingerprint === this.lastTemplateFingerprint && source !== "startup" && !forceRefresh) {
       return;
     }
     this.lastTemplateFingerprint = fingerprint;
@@ -860,6 +917,18 @@ function reject(code, message, extra) {
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function shouldLogFailure(streak) {
+  return streak <= 3 || streak % 10 === 0;
+}
+
+function backoffMs(streak, baseMs, maxMs) {
+  const s = Math.max(1, Number(streak || 1));
+  const base = Math.max(1, Number(baseMs || 1000));
+  const max = Math.max(base, Number(maxMs || base));
+  const exponent = Math.min(6, s - 1);
+  return Math.min(max, base * (2 ** exponent));
 }
 
 function buildTemplateFingerprint(template, mode) {
