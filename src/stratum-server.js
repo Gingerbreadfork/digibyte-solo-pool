@@ -22,6 +22,7 @@ const STRATUM_ERRORS = {
   invalid: [20, "Invalid share", null]
 };
 const EMPTY_BUFFER = Buffer.alloc(0);
+const MAX_RECENT_SHARE_SAMPLES = 240;
 
 /**
  * Stratum V1 server for mining pool protocol.
@@ -51,6 +52,9 @@ class StratumServer extends EventEmitter {
     this.connectionsByIp = new Map(); // IP -> Set of client IDs
     this.connectionAttempts = new Map(); // IP -> Array of timestamps
     this.rateLimitCleanupInterval = null;
+    if (!Array.isArray(this.stats.recentShares)) {
+      this.stats.recentShares = [];
+    }
   }
 
   start() {
@@ -499,6 +503,7 @@ class StratumServer extends EventEmitter {
         client.lowDiffStreak += 1;
       }
       this.recordRejectedShare(share.code);
+      this.recordShareSample("rejected", share, client);
       this.logRejectedShare(client, share, jobId);
       this.maybeDownshiftDifficulty(client, share);
       this.maybeRotatePrevhashMode(client, share);
@@ -525,6 +530,7 @@ class StratumServer extends EventEmitter {
 
     client.acceptedShares += 1;
     client.lowDiffStreak = 0;
+    this.recordShareSample("accepted", share, client);
     this.recordAcceptedShareTiming(client, acceptedAt);
     this.logAcceptedShare(client, share);
 
@@ -564,6 +570,26 @@ class StratumServer extends EventEmitter {
       client.avgAcceptedShareIntervalMs = Math.round((prevAvg * 0.7) + (deltaMs * 0.3));
     } else {
       client.avgAcceptedShareIntervalMs = deltaMs;
+    }
+  }
+
+  recordShareSample(type, share, client) {
+    if (!Array.isArray(this.stats.recentShares)) {
+      this.stats.recentShares = [];
+    }
+
+    const difficulty = Number(share && share.shareDifficulty ? share.shareDifficulty : 0);
+    this.stats.recentShares.push({
+      t: nowMs(),
+      type: type === "rejected" ? "rejected" : "accepted",
+      difficulty: Number.isFinite(difficulty) && difficulty > 0 ? difficulty : 0,
+      worker: client && client.workerName ? client.workerName : "",
+      reason: share && share.code ? String(share.code) : null
+    });
+
+    const overflow = this.stats.recentShares.length - MAX_RECENT_SHARE_SAMPLES;
+    if (overflow > 0) {
+      this.stats.recentShares.splice(0, overflow);
     }
   }
 

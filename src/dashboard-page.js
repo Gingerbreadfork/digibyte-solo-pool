@@ -262,6 +262,134 @@ function renderDashboardHtml() {
       min-width: 0;
     }
 
+    .hero-signal {
+      padding: clamp(12px, 1.3vw, 16px);
+      display: grid;
+      gap: 10px;
+      align-content: start;
+      min-width: 0;
+      background:
+        linear-gradient(140deg, rgba(12, 14, 16, 0.96), rgba(8, 9, 11, 0.98)),
+        var(--surface-strong);
+    }
+
+    [data-theme="light"] .hero-signal {
+      background:
+        linear-gradient(140deg, rgba(255, 252, 245, 0.98), rgba(245, 237, 225, 0.95)),
+        var(--surface-strong);
+    }
+
+    .hero-signal-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      border-bottom: 1px solid var(--line-soft);
+      padding-bottom: 10px;
+      min-width: 0;
+      flex-wrap: wrap;
+    }
+
+    .hero-signal-title {
+      font-size: 11px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--ink-1);
+      font-weight: 700;
+    }
+
+    .hero-signal-meta {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--ink-2);
+      border: 1px solid var(--line-soft);
+      border-radius: 999px;
+      padding: 4px 9px;
+      background: rgba(255, 255, 255, 0.03);
+      white-space: nowrap;
+    }
+
+    [data-theme="light"] .hero-signal-meta {
+      background: rgba(255, 255, 255, 0.78);
+      border-color: rgba(42, 60, 85, 0.14);
+    }
+
+    .hero-signal-grid {
+      display: grid;
+      gap: 10px;
+      min-width: 0;
+    }
+
+    .hero-diff-wrap {
+      position: relative;
+      border: 1px solid var(--line-soft);
+      border-radius: 12px;
+      padding: 10px;
+      min-height: 170px;
+      background:
+        linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px) 0 0 / 100% 25%,
+        linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px) 0 0 / 12.5% 100%,
+        rgba(7, 8, 9, 0.86);
+      overflow: hidden;
+      min-width: 0;
+    }
+
+    [data-theme="light"] .hero-diff-wrap {
+      background:
+        linear-gradient(rgba(65, 88, 122, 0.08) 1px, transparent 1px) 0 0 / 100% 25%,
+        linear-gradient(90deg, rgba(65, 88, 122, 0.06) 1px, transparent 1px) 0 0 / 12.5% 100%,
+        rgba(252, 248, 241, 0.94);
+      border-color: rgba(42, 60, 85, 0.14);
+    }
+
+    .hero-diff-legend {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      color: var(--ink-2);
+      font-family: var(--mono);
+      font-size: 11px;
+    }
+
+    .legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .legend-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      display: inline-block;
+    }
+
+    .legend-dot.acc {
+      background: #6df3a2;
+      box-shadow: 0 0 8px rgba(109, 243, 162, 0.55);
+    }
+
+    .legend-dot.rej {
+      background: #ff7478;
+      box-shadow: 0 0 8px rgba(255, 116, 120, 0.52);
+    }
+
+    .legend-range {
+      margin-left: auto;
+      border: 1px solid var(--line-soft);
+      border-radius: 999px;
+      padding: 4px 8px;
+      background: rgba(255, 255, 255, 0.03);
+      color: var(--ink-1);
+      white-space: nowrap;
+    }
+
+    [data-theme="light"] .legend-range {
+      border-color: rgba(42, 60, 85, 0.14);
+      background: rgba(255, 255, 255, 0.78);
+    }
+
     .meta-pill {
       border-radius: 999px;
       border: 1px solid var(--line-soft);
@@ -531,9 +659,11 @@ function renderDashboardHtml() {
 
     .chart-card {
       display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
       gap: 12px;
       padding: clamp(14px, 1.45vw, 22px);
       min-width: 0;
+      align-content: start;
     }
 
     .chart-head {
@@ -598,9 +728,11 @@ function renderDashboardHtml() {
 
     .table-card {
       display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
       gap: 8px;
       padding: clamp(12px, 1.1vw, 16px);
       min-width: 0;
+      align-content: start;
     }
 
     .rows {
@@ -608,6 +740,7 @@ function renderDashboardHtml() {
       grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 8px;
       min-width: 0;
+      align-content: start;
     }
 
     .row {
@@ -690,6 +823,8 @@ function renderDashboardHtml() {
       padding-right: 4px;
       -webkit-overflow-scrolling: touch;
       overscroll-behavior: contain;
+      align-content: start;
+      min-height: 0;
     }
 
     .block-list::-webkit-scrollbar,
@@ -783,6 +918,7 @@ function renderDashboardHtml() {
     .luck-stats {
       display: grid;
       gap: 8px;
+      align-content: start;
     }
 
     .luck-item {
@@ -848,6 +984,19 @@ function renderDashboardHtml() {
       padding-right: 4px;
       -webkit-overflow-scrolling: touch;
       overscroll-behavior: contain;
+      align-content: start;
+      min-height: 0;
+    }
+
+    .empty-state {
+      color: var(--ink-2);
+      text-align: center;
+      padding: 16px 10px 0;
+      align-self: start;
+      justify-self: stretch;
+      width: 100%;
+      font-size: 13px;
+      line-height: 1.4;
     }
 
     .worker-item {
@@ -1291,6 +1440,10 @@ function renderDashboardHtml() {
         grid-template-columns: 1fr;
       }
 
+      .hero-signal-grid {
+        grid-template-columns: 1fr;
+      }
+
       .rows {
         grid-template-columns: 1fr;
       }
@@ -1374,6 +1527,14 @@ function renderDashboardHtml() {
 
       .hero-rail {
         grid-template-columns: 1fr;
+      }
+
+      .hero-diff-wrap {
+        min-height: 136px;
+      }
+
+      .legend-range {
+        margin-left: 0;
       }
 
       .chart-wrap {
@@ -1491,6 +1652,22 @@ function renderDashboardHtml() {
           <div class="meta-pill">Cadence <span>1s updates</span></div>
           <div class="meta-pill">Mode <span>Solo SHA-256</span></div>
         </div>
+        <article class="hero-signal card">
+          <div class="hero-signal-head">
+            <div class="hero-signal-title">Share Difficulty Map</div>
+            <div id="hero-signal-meta" class="hero-signal-meta">warming up</div>
+          </div>
+          <div class="hero-signal-grid">
+            <div class="hero-diff-wrap">
+              <canvas id="hero-diff-chart" aria-label="Share difficulty scatter"></canvas>
+            </div>
+            <div class="hero-diff-legend">
+              <span class="legend-item"><span class="legend-dot acc"></span>accepted</span>
+              <span class="legend-item"><span class="legend-dot rej"></span>rejected</span>
+              <span id="hero-diff-range" class="legend-range">range -</span>
+            </div>
+          </div>
+        </article>
       </div>
       <div class="hero-rail">
         <article class="card stat-card">
@@ -1593,7 +1770,7 @@ function renderDashboardHtml() {
           <div id="blocks-meta" class="meta">-</div>
         </div>
         <div class="block-list" id="block-list">
-          <div style="text-align: center; padding: 20px; color: var(--ink-2);">No blocks found yet</div>
+          <div class="empty-state">No blocks found yet</div>
         </div>
       </article>
     </section>
@@ -1648,7 +1825,7 @@ function renderDashboardHtml() {
           <div id="workers-meta" class="meta">-</div>
         </div>
         <div class="worker-list" id="worker-list">
-          <div style="text-align: center; padding: 20px; color: var(--ink-2);">No active workers</div>
+          <div class="empty-state">No active workers</div>
         </div>
       </article>
 
@@ -1777,10 +1954,18 @@ function renderDashboardHtml() {
       luckMeta: d.getElementById("luck-meta"),
       healthTemplate: d.getElementById("health-template"),
       healthRpc: d.getElementById("health-rpc"),
-      healthWorkers: d.getElementById("health-workers")
+      healthWorkers: d.getElementById("health-workers"),
+      heroSignalMeta: d.getElementById("hero-signal-meta"),
+      heroDiffRange: d.getElementById("hero-diff-range")
     };
 
     const charts = {
+      heroDiff: createChart(d.getElementById("hero-diff-chart"), {
+        a: "#6df3a2",
+        b: "#ff7478",
+        fillA: "rgba(109,243,162,.16)",
+        fillB: "rgba(255,116,120,.14)"
+      }),
       shares: createChart(d.getElementById("shares-chart"), {
         a: "#43ffd1",
         b: "#ff7171",
@@ -2003,6 +2188,88 @@ function renderDashboardHtml() {
         ctx.fillStyle = fill;
         ctx.fill();
       }
+      ctx.restore();
+    }
+
+    function drawDifficultyScatter(chart, samples) {
+      const { ctx, canvas, palette } = chart;
+      chart.resize();
+      const dpr = chart.dpr;
+      const w = canvas.width;
+      const h = canvas.height;
+      ctx.clearRect(0, 0, w, h);
+      ctx.save();
+      ctx.scale(dpr, dpr);
+
+      const vw = chart.w;
+      const vh = chart.h;
+      const points = [];
+      for (let i = 0; i < samples.length; i += 1) {
+        const s = samples[i];
+        const difficulty = safeNum(s && s.difficulty, 0);
+        if (difficulty <= 0) continue;
+        points.push({
+          difficulty,
+          type: s && s.type === "rejected" ? "rejected" : "accepted"
+        });
+      }
+
+      if (!points.length) {
+        ctx.fillStyle = "rgba(154,157,166,0.75)";
+        ctx.font = "12px JetBrains Mono, monospace";
+        ctx.textAlign = "center";
+        ctx.fillText("Waiting for share samples", vw / 2, vh / 2);
+        ctx.restore();
+        return;
+      }
+
+      const padX = 12;
+      const padY = 12;
+      const gw = Math.max(1, vw - (padX * 2));
+      const gh = Math.max(1, vh - (padY * 2));
+
+      let minLog = Math.log10(points[0].difficulty);
+      let maxLog = minLog;
+      for (let i = 1; i < points.length; i += 1) {
+        const logv = Math.log10(points[i].difficulty);
+        if (logv < minLog) minLog = logv;
+        if (logv > maxLog) maxLog = logv;
+      }
+      if (maxLog - minLog < 0.2) {
+        minLog -= 0.1;
+        maxLog += 0.1;
+      }
+
+      ctx.strokeStyle = "rgba(255,255,255,0.08)";
+      ctx.lineWidth = 1;
+      for (let i = 0; i <= 4; i += 1) {
+        const y = padY + (gh * i / 4);
+        ctx.beginPath();
+        ctx.moveTo(padX, y);
+        ctx.lineTo(padX + gw, y);
+        ctx.stroke();
+      }
+
+      const lastIndex = Math.max(1, points.length - 1);
+      for (let i = 0; i < points.length; i += 1) {
+        const point = points[i];
+        const x = padX + (gw * i / lastIndex);
+        const logv = Math.log10(point.difficulty);
+        const t = (logv - minLog) / (maxLog - minLog || 1);
+        const y = padY + gh - (t * gh);
+        const radius = point.type === "rejected" ? 3.1 : 2.8;
+        const fill = point.type === "rejected" ? palette.b : palette.a;
+        const glow = point.type === "rejected" ? "rgba(255,116,120,0.5)" : "rgba(109,243,162,0.45)";
+
+        ctx.beginPath();
+        ctx.arc(x, y, radius, 0, Math.PI * 2);
+        ctx.fillStyle = fill;
+        ctx.shadowColor = glow;
+        ctx.shadowBlur = 6;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+      }
+
       ctx.restore();
     }
 
@@ -2503,11 +2770,13 @@ function renderDashboardHtml() {
 
       const shareA = ringToArray(history.sharesAcceptedDelta);
       const shareB = ringToArray(history.sharesRejectedDelta);
+      const heightsRaw = ringToArray(history.height);
+      const bcasts = ringToArray(history.broadcastsDelta);
+      renderHeroDifficulty(Array.isArray(s.recentShares) ? s.recentShares : []);
       drawDualChart(charts.shares, shareA, shareB);
       text(refs.sharesChartMeta, "acc " + fmtInt(d0.acceptedDelta) + " / rej " + fmtInt(d0.rejectedDelta) + " this tick");
 
-      const heights = normalizeSeries(ringToArray(history.height));
-      const bcasts = ringToArray(history.broadcastsDelta);
+      const heights = normalizeSeries(heightsRaw);
       drawDualChart(charts.height, heights, bcasts);
       text(refs.heightChartMeta, "height " + (j ? fmtInt(j.height) : "-") + " • bcasts/min " + fmtInt(d0.recentBcastsPerMin));
 
@@ -2523,7 +2792,7 @@ function renderDashboardHtml() {
       text(refs.workersMeta, workers.length + " active");
 
       if (workers.length === 0) {
-        refs.workerList.innerHTML = '<div style="text-align: center; padding: 20px; color: var(--ink-2);">No active workers</div>';
+        refs.workerList.innerHTML = '<div class="empty-state">No active workers</div>';
         return;
       }
 
@@ -2594,12 +2863,36 @@ function renderDashboardHtml() {
       refs.workerList.innerHTML = html;
     }
 
+    function renderHeroDifficulty(samples) {
+      const list = Array.isArray(samples) ? samples.slice(-180) : [];
+      drawDifficultyScatter(charts.heroDiff, list);
+      text(refs.heroSignalMeta, "last " + fmtInt(list.length) + " shares");
+
+      const difficulties = [];
+      for (let i = 0; i < list.length; i += 1) {
+        const d = safeNum(list[i] && list[i].difficulty, 0);
+        if (d > 0) difficulties.push(d);
+      }
+      if (!difficulties.length) {
+        text(refs.heroDiffRange, "range -");
+        return;
+      }
+
+      let min = difficulties[0];
+      let max = difficulties[0];
+      for (let i = 1; i < difficulties.length; i += 1) {
+        if (difficulties[i] < min) min = difficulties[i];
+        if (difficulties[i] > max) max = difficulties[i];
+      }
+      text(refs.heroDiffRange, fmtDifficulty(min) + " -> " + fmtDifficulty(max));
+    }
+
     function renderTimeline() {
       const maxHeight = 100;
 
       if (shareTimeline.length === 0) {
         if (!timelineDirty) return;
-        refs.shareTimeline.innerHTML = '<div style="text-align: center; color: var(--ink-2); padding: 10px;">No recent shares</div>';
+        refs.shareTimeline.innerHTML = '<div class="empty-state">No recent shares</div>';
         text(refs.timelineMeta, "last 0 shares");
         timelineDirty = false;
         timelineNewSinceRender = 0;
@@ -2708,7 +3001,7 @@ function renderDashboardHtml() {
       text(refs.blocksMeta, blocksHistory.length + " found");
 
       if (blocksHistory.length === 0) {
-        refs.blockList.innerHTML = '<div style="text-align: center; padding: 20px; color: var(--ink-2);">No blocks found yet</div>';
+        refs.blockList.innerHTML = '<div class="empty-state">No blocks found yet</div>';
         return;
       }
 

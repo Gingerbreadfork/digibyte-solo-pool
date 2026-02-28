@@ -43,7 +43,8 @@ async function main() {
     lastFoundBlockAt: 0,
     bestShareDifficulty: 0,
     bestShareWorker: null,
-    bestShareAt: 0
+    bestShareAt: 0,
+    recentShares: []
   };
 
   const rpc = new RpcClient(config, logger);
