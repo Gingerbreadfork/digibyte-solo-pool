@@ -1,6 +1,6 @@
 # DigiByte Solo Stratum Pool (Plain Node.js)
 
-**A production-ready, low-latency solo mining pool for DigiByte with zero dependencies.**
+**A ~~production-ready~~, low-latency solo mining pool for DigiByte with zero dependencies.**
 
 High-priority goals for this build:
 
