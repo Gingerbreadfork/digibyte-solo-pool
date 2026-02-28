@@ -1,10 +1,7 @@
 "use strict";
 
-let cachedHtml = null;
-
 function renderDashboardHtml() {
-  if (cachedHtml) return cachedHtml;
-  cachedHtml = `<!doctype html>
+  return `<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
@@ -159,7 +156,7 @@ function renderDashboardHtml() {
       box-shadow: var(--shadow-lg);
       display: grid;
       gap: clamp(16px, 2vw, 30px);
-      grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+      grid-template-columns: 1fr;
       overflow: hidden;
       isolation: isolate;
     }
@@ -267,6 +264,7 @@ function renderDashboardHtml() {
       display: grid;
       gap: 10px;
       align-content: start;
+      min-height: 0;
       min-width: 0;
       background:
         linear-gradient(140deg, rgba(12, 14, 16, 0.96), rgba(8, 9, 11, 0.98)),
@@ -324,14 +322,52 @@ function renderDashboardHtml() {
       position: relative;
       border: 1px solid var(--line-soft);
       border-radius: 12px;
-      padding: 10px;
-      min-height: 170px;
+      padding: 8px;
+      height: auto;
+      min-height: 260px;
       background:
         linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px) 0 0 / 100% 25%,
         linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px) 0 0 / 12.5% 100%,
         rgba(7, 8, 9, 0.86);
       overflow: hidden;
       min-width: 0;
+    }
+
+    .hero-diff-wrap > #hero-diff-chart {
+      height: 244px;
+      min-height: 244px;
+      display: block;
+    }
+
+    .hero-diff-tooltip {
+      position: absolute;
+      left: 0;
+      top: 0;
+      pointer-events: none;
+      z-index: 3;
+      border: 1px solid var(--line-soft);
+      border-radius: 9px;
+      background: rgba(10, 12, 14, 0.94);
+      color: var(--ink-0);
+      font-family: var(--mono);
+      font-size: 11px;
+      line-height: 1;
+      padding: 7px 9px;
+      white-space: nowrap;
+      opacity: 0;
+      transform: translate(-50%, -120%);
+      transition: opacity 0.12s ease;
+      box-shadow: var(--shadow-xs);
+    }
+
+    [data-theme="light"] .hero-diff-tooltip {
+      background: rgba(255, 255, 255, 0.96);
+      border-color: rgba(42, 60, 85, 0.18);
+      color: #213147;
+    }
+
+    .hero-diff-tooltip.show {
+      opacity: 1;
     }
 
     [data-theme="light"] .hero-diff-wrap {
@@ -529,13 +565,6 @@ function renderDashboardHtml() {
       background: rgba(116, 191, 255, 0.12);
       border-color: rgba(116, 191, 255, 0.55);
       box-shadow: 0 0 0 3px rgba(116, 191, 255, 0.16), var(--shadow-sm);
-    }
-
-    .hero-rail {
-      display: grid;
-      gap: 10px;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      align-content: stretch;
     }
 
     .card {
@@ -1415,16 +1444,6 @@ function renderDashboardHtml() {
       }
     }
 
-    @media (max-width: 1400px) {
-      .hero {
-        grid-template-columns: 1fr;
-      }
-
-      .hero-rail {
-        grid-template-columns: repeat(4, minmax(0, 1fr));
-      }
-    }
-
     @media (max-width: 1180px) {
       .span-8,
       .span-6 {
@@ -1492,10 +1511,6 @@ function renderDashboardHtml() {
         flex-wrap: nowrap;
       }
 
-      .hero-rail {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-      }
-
       .span-4,
       .span-3 {
         grid-column: span 12;
@@ -1525,12 +1540,13 @@ function renderDashboardHtml() {
         row-gap: 8px;
       }
 
-      .hero-rail {
-        grid-template-columns: 1fr;
+      .hero-diff-wrap {
+        min-height: 180px;
       }
 
-      .hero-diff-wrap {
-        min-height: 136px;
+      .hero-diff-wrap > #hero-diff-chart {
+        height: 164px;
+        min-height: 164px;
       }
 
       .legend-range {
@@ -1657,8 +1673,9 @@ function renderDashboardHtml() {
             <div id="hero-signal-meta" class="hero-signal-meta">warming up</div>
           </div>
           <div class="hero-signal-grid">
-            <div class="hero-diff-wrap">
+            <div id="hero-diff-wrap" class="hero-diff-wrap">
               <canvas id="hero-diff-chart" aria-label="Share difficulty scatter"></canvas>
+              <div id="hero-diff-tooltip" class="hero-diff-tooltip" aria-hidden="true"></div>
             </div>
             <div class="hero-diff-legend">
               <span class="legend-item"><span class="legend-dot acc"></span>accepted</span>
@@ -1668,28 +1685,29 @@ function renderDashboardHtml() {
           </div>
         </article>
       </div>
-      <div class="hero-rail">
-        <article class="card stat-card">
-          <div class="label"><span class="label-icon">⚡</span>Pool Hashrate</div>
-          <div id="pool-hashrate" class="value">-</div>
-          <div id="pool-hashrate-hint" class="hint">estimated from live worker deltas</div>
-        </article>
-        <article class="card stat-card">
-          <div class="label"><span class="label-icon">✓</span>Accepted / Min</div>
-          <div id="rpm-accepted" class="value">-</div>
-          <div id="rpm-accepted-hint" class="hint">live throughput</div>
-        </article>
-        <article class="card stat-card">
-          <div class="label"><span class="label-icon">◎</span>Reject Ratio</div>
-          <div id="ratio-reject" class="value">-</div>
-          <div id="ratio-reject-hint" class="hint">of total shares</div>
-        </article>
-        <article class="card stat-card">
-          <div class="label"><span class="label-icon">◷</span>Last Share</div>
-          <div id="last-share-age" class="value">-</div>
-          <div id="last-share-worker" class="hint">worker: -</div>
-        </article>
-      </div>
+    </section>
+
+    <section class="grid reveal">
+      <article class="card stat-card span-3">
+        <div class="label"><span class="label-icon">⚡</span>Pool Hashrate</div>
+        <div id="pool-hashrate" class="value">-</div>
+        <div id="pool-hashrate-hint" class="hint">estimated from live worker deltas</div>
+      </article>
+      <article class="card stat-card span-3">
+        <div class="label"><span class="label-icon">✓</span>Accepted / Min</div>
+        <div id="rpm-accepted" class="value">-</div>
+        <div id="rpm-accepted-hint" class="hint">live throughput</div>
+      </article>
+      <article class="card stat-card span-3">
+        <div class="label"><span class="label-icon">◎</span>Reject Ratio</div>
+        <div id="ratio-reject" class="value">-</div>
+        <div id="ratio-reject-hint" class="hint">of total shares</div>
+      </article>
+      <article class="card stat-card span-3">
+        <div class="label"><span class="label-icon">◷</span>Last Share</div>
+        <div id="last-share-age" class="value">-</div>
+        <div id="last-share-worker" class="hint">worker: -</div>
+      </article>
     </section>
 
     <section class="grid reveal">
@@ -1954,7 +1972,9 @@ function renderDashboardHtml() {
       healthRpc: d.getElementById("health-rpc"),
       healthWorkers: d.getElementById("health-workers"),
       heroSignalMeta: d.getElementById("hero-signal-meta"),
-      heroDiffRange: d.getElementById("hero-diff-range")
+      heroDiffRange: d.getElementById("hero-diff-range"),
+      heroDiffWrap: d.getElementById("hero-diff-wrap"),
+      heroDiffTooltip: d.getElementById("hero-diff-tooltip")
     };
 
     const charts = {
@@ -1977,6 +1997,10 @@ function renderDashboardHtml() {
         fillB: "rgba(179,255,74,.08)"
       })
     };
+    charts.heroDiff.hitPoints = [];
+    charts.heroDiff.hoverIndex = -1;
+    charts.heroDiff.lastSamples = [];
+    setupHeroDiffInteractions();
 
     let renderQueued = false;
     let latestModel = null;
@@ -2202,6 +2226,7 @@ function renderDashboardHtml() {
       const vw = chart.w;
       const vh = chart.h;
       const points = [];
+      chart.hitPoints = [];
       for (let i = 0; i < samples.length; i += 1) {
         const s = samples[i];
         const difficulty = safeNum(s && s.difficulty, 0);
@@ -2217,6 +2242,7 @@ function renderDashboardHtml() {
         ctx.font = "12px JetBrains Mono, monospace";
         ctx.textAlign = "center";
         ctx.fillText("Waiting for share samples", vw / 2, vh / 2);
+        chart.hoverIndex = -1;
         ctx.restore();
         return;
       }
@@ -2248,6 +2274,9 @@ function renderDashboardHtml() {
         ctx.stroke();
       }
 
+      const activeHover = chart.hoverIndex >= 0 && chart.hoverIndex < points.length
+        ? chart.hoverIndex
+        : -1;
       const lastIndex = Math.max(1, points.length - 1);
       for (let i = 0; i < points.length; i += 1) {
         const point = points[i];
@@ -2255,9 +2284,21 @@ function renderDashboardHtml() {
         const logv = Math.log10(point.difficulty);
         const t = (logv - minLog) / (maxLog - minLog || 1);
         const y = padY + gh - (t * gh);
-        const radius = point.type === "rejected" ? 3.1 : 2.8;
+        const isHover = i === activeHover;
+        const radius = isHover
+          ? (point.type === "rejected" ? 4.9 : 4.6)
+          : (point.type === "rejected" ? 3.1 : 2.8);
         const fill = point.type === "rejected" ? palette.b : palette.a;
-        const glow = point.type === "rejected" ? "rgba(255,116,120,0.5)" : "rgba(109,243,162,0.45)";
+        const glow = point.type === "rejected" ? "rgba(255,116,120,0.56)" : "rgba(109,243,162,0.5)";
+
+        if (isHover) {
+          ctx.beginPath();
+          ctx.arc(x, y, radius + 4, 0, Math.PI * 2);
+          ctx.fillStyle = point.type === "rejected"
+            ? "rgba(255,116,120,0.2)"
+            : "rgba(109,243,162,0.2)";
+          ctx.fill();
+        }
 
         ctx.beginPath();
         ctx.arc(x, y, radius, 0, Math.PI * 2);
@@ -2266,9 +2307,105 @@ function renderDashboardHtml() {
         ctx.shadowBlur = 6;
         ctx.fill();
         ctx.shadowBlur = 0;
+
+        chart.hitPoints.push({
+          x,
+          y,
+          difficulty: point.difficulty,
+          type: point.type
+        });
       }
 
       ctx.restore();
+    }
+
+    function setupHeroDiffInteractions() {
+      const chart = charts.heroDiff;
+      const canvas = chart && chart.canvas;
+      if (!canvas) return;
+
+      const clearHover = () => {
+        if (chart.hoverIndex !== -1) {
+          chart.hoverIndex = -1;
+          drawDifficultyScatter(chart, chart.lastSamples || []);
+        }
+        hideHeroDiffTooltip();
+        canvas.style.cursor = "default";
+      };
+
+      canvas.addEventListener("pointermove", (event) => {
+        if (event.pointerType === "touch") return;
+        const rect = canvas.getBoundingClientRect();
+        const x = event.clientX - rect.left;
+        const y = event.clientY - rect.top;
+        const hit = findNearestScatterPoint(chart, x, y, 12);
+        if (!hit) {
+          clearHover();
+          return;
+        }
+
+        if (chart.hoverIndex !== hit.index) {
+          chart.hoverIndex = hit.index;
+          drawDifficultyScatter(chart, chart.lastSamples || []);
+        }
+        showHeroDiffTooltip(hit.point, x, y);
+        canvas.style.cursor = "pointer";
+      }, { passive: true });
+
+      canvas.addEventListener("pointerleave", clearHover, { passive: true });
+      canvas.addEventListener("pointercancel", clearHover, { passive: true });
+    }
+
+    function findNearestScatterPoint(chart, x, y, radius) {
+      const hits = Array.isArray(chart.hitPoints) ? chart.hitPoints : [];
+      if (!hits.length) return null;
+      const maxDistSq = radius * radius;
+      let bestIndex = -1;
+      let bestDistSq = maxDistSq;
+      for (let i = 0; i < hits.length; i += 1) {
+        const dx = hits[i].x - x;
+        const dy = hits[i].y - y;
+        const distSq = (dx * dx) + (dy * dy);
+        if (distSq <= bestDistSq) {
+          bestDistSq = distSq;
+          bestIndex = i;
+        }
+      }
+      if (bestIndex < 0) return null;
+      return { index: bestIndex, point: hits[bestIndex] };
+    }
+
+    function showHeroDiffTooltip(point, canvasX, canvasY) {
+      const tip = refs.heroDiffTooltip;
+      const wrap = refs.heroDiffWrap;
+      const canvas = charts.heroDiff && charts.heroDiff.canvas;
+      if (!tip || !wrap || !canvas || !point) return;
+
+      const typeLabel = point.type === "rejected" ? "Rejected" : "Accepted";
+      text(tip, typeLabel + " • " + fmtDifficulty(point.difficulty));
+      tip.classList.add("show");
+
+      const wrapRect = wrap.getBoundingClientRect();
+      const canvasRect = canvas.getBoundingClientRect();
+      const localX = (canvasRect.left - wrapRect.left) + canvasX;
+      const localY = (canvasRect.top - wrapRect.top) + canvasY;
+
+      const width = tip.offsetWidth || 100;
+      const height = tip.offsetHeight || 24;
+      let left = localX;
+      let top = localY - 8;
+      const minLeft = 12 + (width / 2);
+      const maxLeft = Math.max(minLeft, wrap.clientWidth - 12 - (width / 2));
+      left = Math.max(minLeft, Math.min(maxLeft, left));
+      top = Math.max(12 + height, top);
+
+      tip.style.left = left + "px";
+      tip.style.top = top + "px";
+    }
+
+    function hideHeroDiffTooltip() {
+      if (!refs.heroDiffTooltip) return;
+      refs.heroDiffTooltip.classList.remove("show");
     }
 
     function text(el, value) {
@@ -2863,6 +3000,11 @@ function renderDashboardHtml() {
 
     function renderHeroDifficulty(samples) {
       const list = Array.isArray(samples) ? samples.slice(-180) : [];
+      charts.heroDiff.lastSamples = list;
+      if (charts.heroDiff.hoverIndex >= list.length) {
+        charts.heroDiff.hoverIndex = -1;
+        hideHeroDiffTooltip();
+      }
       drawDifficultyScatter(charts.heroDiff, list);
       text(refs.heroSignalMeta, "last " + fmtInt(list.length) + " shares");
 
@@ -2873,6 +3015,7 @@ function renderDashboardHtml() {
       }
       if (!difficulties.length) {
         text(refs.heroDiffRange, "range -");
+        hideHeroDiffTooltip();
         return;
       }
 
@@ -3192,7 +3335,6 @@ function renderDashboardHtml() {
   </script>
 </body>
 </html>`;
-  return cachedHtml;
 }
 
 module.exports = { renderDashboardHtml };

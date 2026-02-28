@@ -132,7 +132,7 @@ class ApiServer {
 
     if (pathname === "/" || pathname === "/dashboard") {
       return this.writeHtml(res, 200, renderDashboardHtml(), {
-        "Cache-Control": "public, max-age=60"
+        "Cache-Control": "no-store, max-age=0"
       });
     }
 
