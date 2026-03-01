@@ -772,6 +772,10 @@ function renderDashboardHtml() {
       align-content: start;
     }
 
+    .runtime-rows {
+      grid-template-columns: 1fr;
+    }
+
     .row {
       display: flex;
       align-items: center;
@@ -819,6 +823,52 @@ function renderDashboardHtml() {
       text-overflow: ellipsis;
       white-space: nowrap;
       min-width: 0;
+    }
+
+    .runtime-rows .row {
+      display: grid;
+      grid-template-columns: minmax(126px, 190px) minmax(0, 1fr) auto;
+      align-items: center;
+      justify-content: start;
+      gap: 10px;
+    }
+
+    .runtime-rows .row .k {
+      white-space: normal;
+    }
+
+    .runtime-rows .row .v {
+      text-align: left;
+      white-space: normal;
+      overflow: visible;
+      text-overflow: clip;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+
+    .runtime-action-btn {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 4px 8px;
+      font-size: 10px;
+      font-family: var(--mono);
+      letter-spacing: 0.01em;
+      background: rgba(116, 191, 255, 0.12);
+      color: var(--cyan);
+      text-decoration: none;
+      cursor: pointer;
+      transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease, opacity 0.2s ease;
+    }
+
+    .runtime-action-btn:hover {
+      background: rgba(116, 191, 255, 0.18);
+      border-color: rgba(116, 191, 255, 0.5);
+    }
+
+    .runtime-action-btn.disabled {
+      opacity: 0.45;
+      pointer-events: none;
+      cursor: default;
     }
 
     .copy-btn {
@@ -1528,6 +1578,16 @@ function renderDashboardHtml() {
       .worker-list {
         max-height: 320px;
       }
+
+      .runtime-rows .row {
+        grid-template-columns: 1fr;
+        gap: 4px;
+      }
+
+      .runtime-action-btn {
+        justify-self: start;
+        margin-top: 2px;
+      }
     }
 
     @media (max-width: 660px) {
@@ -1851,13 +1911,18 @@ function renderDashboardHtml() {
           <div class="title">Runtime Detail</div>
           <div id="runtime-detail-meta" class="meta">/stats snapshot</div>
         </div>
-        <div class="rows">
+        <div class="rows runtime-rows">
           <div class="row"><div class="k">Template Source</div><div id="tmpl-source" class="v">-</div></div>
           <div class="row"><div class="k">Network Bits</div><div id="tmpl-bits" class="v">-</div></div>
           <div class="row"><div class="k">Templates Fetched</div><div id="tmpl-fetched" class="v">-</div></div>
           <div class="row"><div class="k">Last Template Age</div><div id="tmpl-age" class="v">-</div></div>
           <div class="row"><div class="k">Last Broadcast Age</div><div id="bcast-age" class="v">-</div></div>
           <div class="row"><div class="k">Last Broadcast Clients</div><div id="bcast-clients" class="v">-</div></div>
+          <div class="row">
+            <div class="k">Payout Address</div>
+            <div id="payout-address" class="v">-</div>
+            <a id="payout-explorer-btn" class="runtime-action-btn disabled" href="#" target="_blank" rel="noopener noreferrer" aria-disabled="true" tabindex="-1">Explorer</a>
+          </div>
           <div class="row"><div class="k">Last Found Block</div><div id="last-found-hash" class="v">-</div></div>
           <div class="row"><div class="k">Last Found Age</div><div id="last-found-age" class="v">-</div></div>
         </div>
@@ -1877,6 +1942,7 @@ function renderDashboardHtml() {
     const MAX_POINTS = 120;
     const MAX_TIMELINE_ITEMS = 60;
     const MAX_BLOCKS_HISTORY = 10;
+    const DEFAULT_ADDRESS_EXPLORER_BASE = "https://digiexplorer.info/address/";
     const d = document;
 
     // Load preferences
@@ -1948,6 +2014,8 @@ function renderDashboardHtml() {
       tmplAge: d.getElementById("tmpl-age"),
       bcastAge: d.getElementById("bcast-age"),
       bcastClients: d.getElementById("bcast-clients"),
+      payoutAddress: d.getElementById("payout-address"),
+      payoutExplorerBtn: d.getElementById("payout-explorer-btn"),
       lastFoundHash: d.getElementById("last-found-hash"),
       lastFoundAge: d.getElementById("last-found-age"),
       runtimeDetailMeta: d.getElementById("runtime-detail-meta"),
@@ -2009,7 +2077,7 @@ function renderDashboardHtml() {
     let prevStats = null;
     let prevSampleTime = 0;
     let lastError = "";
-    let lastBlockCount = 0;
+    let lastBlockCount = null;
     let shareTimeline = [];
     let timelineDirty = true;
     let timelineNewSinceRender = 0;
@@ -2413,6 +2481,24 @@ function renderDashboardHtml() {
       if (el.textContent !== v) el.textContent = v;
     }
 
+    function setPayoutExplorerLink(address, explorerBase) {
+      if (!refs.payoutExplorerBtn) return;
+      if (!address) {
+        refs.payoutExplorerBtn.href = "#";
+        refs.payoutExplorerBtn.classList.add("disabled");
+        refs.payoutExplorerBtn.setAttribute("aria-disabled", "true");
+        refs.payoutExplorerBtn.tabIndex = -1;
+        return;
+      }
+
+      const base = String(explorerBase || DEFAULT_ADDRESS_EXPLORER_BASE).trim();
+      const normalizedBase = base.endsWith("/") ? base : (base + "/");
+      refs.payoutExplorerBtn.href = normalizedBase + encodeURIComponent(address);
+      refs.payoutExplorerBtn.classList.remove("disabled");
+      refs.payoutExplorerBtn.setAttribute("aria-disabled", "false");
+      refs.payoutExplorerBtn.tabIndex = 0;
+    }
+
     function animateNumber(el, targetValue, duration = 500) {
       const key = el.id || el;
       const current = animatedValues.get(key) || 0;
@@ -2664,18 +2750,19 @@ function renderDashboardHtml() {
       const jobBroadcasts = safeNum(stats.jobBroadcasts, 0);
       const height = job ? safeNum(job.height, safeNum(stats.currentHeight, 0)) : safeNum(stats.currentHeight, 0);
 
-      // Detect block found
-      if (blocksFound > lastBlockCount && lastBlockCount > 0) {
-        const blockHash = stats.lastFoundBlockHash || "";
-        const blockHeight = height;
-        const blockWorker = stats.lastShareWorker || "unknown";
-        celebrateBlockFound(blockHash);
-        addBlockToHistory({
-          hash: blockHash,
-          height: blockHeight,
-          worker: blockWorker,
-          timestamp: now
-        });
+      const blockCountIncreased = lastBlockCount !== null && blocksFound > lastBlockCount;
+
+      // Detect newly found block(s) while connected
+      if (blockCountIncreased) {
+        const added = addLatestBlockFromStats(stats, height, now, true);
+        if (!added) {
+          celebrateBlockFound(stats.lastFoundBlockHash || "");
+        }
+      }
+
+      // Keep recent blocks in sync with backend stats after reloads or missed events
+      if (blocksFound > 0) {
+        addLatestBlockFromStats(stats, height, now, false);
       }
       lastBlockCount = blocksFound;
 
@@ -2823,6 +2910,30 @@ function renderDashboardHtml() {
       localStorage.setItem('pool-blocks-history', JSON.stringify(blocksHistory));
     }
 
+    function hasBlockInHistory(blockHash) {
+      if (!blockHash) return false;
+      return blocksHistory.some((block) => block.hash === blockHash);
+    }
+
+    function addLatestBlockFromStats(stats, blockHeight, fallbackTimestamp, celebrate) {
+      const blockHash = typeof stats.lastFoundBlockHash === "string" ? stats.lastFoundBlockHash : "";
+      if (!blockHash || hasBlockInHistory(blockHash)) {
+        return false;
+      }
+
+      addBlockToHistory({
+        hash: blockHash,
+        height: blockHeight,
+        worker: stats.lastShareWorker || "unknown",
+        timestamp: safeNum(stats.lastFoundBlockAt, fallbackTimestamp) || fallbackTimestamp
+      });
+
+      if (celebrate) {
+        celebrateBlockFound(blockHash);
+      }
+      return true;
+    }
+
     function computeRatePerMinute(r) {
       if (r.count <= 0) return 0;
       let sum = 0;
@@ -2855,6 +2966,7 @@ function renderDashboardHtml() {
       const s = p.stats || {};
       const j = p.job;
       const c = p.connections || {};
+      const runtime = p.runtime || {};
       const d0 = m.derived;
       const workers = m.workers || [];
 
@@ -2898,6 +3010,12 @@ function renderDashboardHtml() {
       text(refs.tmplAge, fmtTsAge(s.lastTemplateAt));
       text(refs.bcastAge, fmtTsAge(s.lastBroadcastAt));
       text(refs.bcastClients, fmtInt(safeNum(s.lastBroadcastClients, 0)));
+      const payoutAddress = typeof runtime.poolPayoutAddress === "string" ? runtime.poolPayoutAddress.trim() : "";
+      const payoutExplorerBase = typeof runtime.poolPayoutAddressExplorerBase === "string"
+        ? runtime.poolPayoutAddressExplorerBase.trim()
+        : "";
+      text(refs.payoutAddress, payoutAddress || "-");
+      setPayoutExplorerLink(payoutAddress, payoutExplorerBase);
       text(refs.lastFoundHash, s.lastFoundBlockHash || "-");
       text(refs.lastFoundAge, fmtTsAge(s.lastFoundBlockAt));
       text(refs.runtimeDetailMeta, "seq " + sampleSeq);

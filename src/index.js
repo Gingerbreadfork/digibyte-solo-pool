@@ -15,7 +15,7 @@ loadEnvFile(path.resolve(process.cwd(), ".env"));
 async function main() {
   const config = loadConfig();
   process.env.LOG_LEVEL = config.logLevel;
-  const logger = createLogger();
+  const logger = createLogger({ fields: { component: "pool" } });
   printStartupBanner(config);
 
   const stats = {
@@ -47,18 +47,18 @@ async function main() {
     bestShareAt: 0,
     recentShares: []
   };
-  const statsPersistence = new StatsPersistence(config, logger, stats);
+  const statsPersistence = new StatsPersistence(config, logger.child("stats-persistence"), stats);
   await statsPersistence.start();
 
-  const rpc = new RpcClient(config, logger);
-  const jobManager = new JobManager(config, logger, rpc, stats);
+  const rpc = new RpcClient(config, logger.child("rpc"));
+  const jobManager = new JobManager(config, logger.child("job-manager"), rpc, stats);
   await jobManager.init();
   await jobManager.start();
 
-  const stratum = new StratumServer(config, logger, jobManager, stats);
+  const stratum = new StratumServer(config, logger.child("stratum"), jobManager, stats);
   stratum.start();
 
-  const api = new ApiServer(config, logger, stats, jobManager, stratum);
+  const api = new ApiServer(config, logger.child("api"), stats, jobManager, stratum);
   api.start();
 
   const shutdown = async (signal) => {
@@ -77,10 +77,10 @@ async function main() {
   process.on("SIGTERM", () => shutdown("SIGTERM"));
 
   process.on("unhandledRejection", (err) => {
-    logger.error("Unhandled rejection", { error: err && err.message ? err.message : String(err) });
+    logger.error("Unhandled rejection", { error: err });
   });
   process.on("uncaughtException", (err) => {
-    logger.error("Uncaught exception", { error: err.message, stack: err.stack });
+    logger.error("Uncaught exception", { error: err });
     process.exit(1);
   });
 }
@@ -114,7 +114,8 @@ function loadEnvFile(filePath) {
 }
 
 main().catch((err) => {
-  process.stderr.write(`${err.stack || err.message}\n`);
+  const bootstrapLogger = createLogger({ fields: { component: "bootstrap" } });
+  bootstrapLogger.error("Fatal startup error", { error: err });
   process.exit(1);
 });
 

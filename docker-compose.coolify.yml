@@ -60,6 +60,7 @@ services:
 
       # === Pool Payout Configuration ===
       POOL_PAYOUT_ADDRESS: ${POOL_PAYOUT_ADDRESS}
+      POOL_PAYOUT_ADDRESS_EXPLORER_BASE: ${POOL_PAYOUT_ADDRESS_EXPLORER_BASE:-https://digiexplorer.info/address/}
       POOL_PAYOUT_SCRIPT_HEX: ${POOL_PAYOUT_SCRIPT_HEX:-}
       POOL_TAG: ${POOL_TAG:-/gbf-solo/}
 
@@ -80,6 +81,7 @@ services:
       # === Debugging & Logging ===
       DEBUG_SHARE_VALIDATION: ${DEBUG_SHARE_VALIDATION:-false}
       LOG_LEVEL: ${LOG_LEVEL:-info}
+      LOG_FORMAT: ${LOG_FORMAT:-auto}
 
     ports:
       - "3333:3333/tcp"

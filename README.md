@@ -389,6 +389,7 @@ EXTRANONCE2_SIZE=8                       # Extranonce2 size in bytes (2-16)
 
 ```bash
 POOL_PAYOUT_ADDRESS=dgb1...              # Your DigiByte payout address (REQUIRED)
+POOL_PAYOUT_ADDRESS_EXPLORER_BASE=https://digiexplorer.info/address/ # Dashboard explorer base URL for payout address
 POOL_PAYOUT_SCRIPT_HEX=                  # Advanced: Raw scriptPubKey hex (optional, leave empty)
 POOL_TAG=/your-pool-tag/                 # Pool identifier in coinbase (max ~20 chars)
 ```
@@ -419,6 +420,7 @@ GBT_RULES=segwit                         # getblocktemplate rules (comma-separat
 
 ```bash
 LOG_LEVEL=info                           # Logging level: debug|info|warn|error
+LOG_FORMAT=auto                          # auto|json|pretty (auto=pretty on TTY, json otherwise)
 DEBUG_SHARE_VALIDATION=false             # Extra diagnostics for share validation issues
 ```
 

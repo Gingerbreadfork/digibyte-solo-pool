@@ -47,6 +47,7 @@ function loadConfig() {
     extranonce2Size: toInt(process.env.EXTRANONCE2_SIZE, 8),
 
     poolPayoutAddress: process.env.POOL_PAYOUT_ADDRESS || "",
+    poolPayoutAddressExplorerBase: process.env.POOL_PAYOUT_ADDRESS_EXPLORER_BASE || "https://digiexplorer.info/address/",
     poolPayoutScriptHex: process.env.POOL_PAYOUT_SCRIPT_HEX || "",
     poolTag: process.env.POOL_TAG || "/gbf-solo/",
 

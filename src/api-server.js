@@ -55,14 +55,15 @@ class ApiServer {
     }
 
     this.server.listen(this.config.apiPort, this.config.apiHost, () => {
+      const protocol = this.config.apiTls ? "https" : "http";
+      const dashboardUrl = buildDashboardUrl(this.config.apiHost, this.config.apiPort, protocol);
       this.logger.info("API listening", {
         host: this.config.apiHost,
         port: this.config.apiPort,
         tls: this.config.apiTls,
-        cors: this.config.apiCorsEnabled
+        cors: this.config.apiCorsEnabled,
+        dashboardUrl
       });
-      const protocol = this.config.apiTls ? "https" : "http";
-      writeAlwaysLine(`Dashboard: ${buildDashboardUrl(this.config.apiHost, this.config.apiPort, protocol)}`);
     });
 
     // Start SSE broadcast interval (send updates every second)
@@ -165,7 +166,11 @@ class ApiServer {
           segwit: job.segwit
         } : null,
         connections,
-        stats: this.stats
+        stats: this.stats,
+        runtime: {
+          poolPayoutAddress: this.config.poolPayoutAddress || "",
+          poolPayoutAddressExplorerBase: this.config.poolPayoutAddressExplorerBase || ""
+        }
       });
     }
 
@@ -256,7 +261,11 @@ class ApiServer {
         segwit: job.segwit
       } : null,
       connections,
-      stats: this.stats
+      stats: this.stats,
+      runtime: {
+        poolPayoutAddress: this.config.poolPayoutAddress || "",
+        poolPayoutAddressExplorerBase: this.config.poolPayoutAddressExplorerBase || ""
+      }
     };
 
     const message = `data: ${JSON.stringify(data)}\n\n`;
@@ -394,10 +403,6 @@ function buildDashboardUrl(host, port, protocol) {
     : displayHost;
   const proto = protocol || "http";
   return `${proto}://${bracketedHost}:${Number(port) || 8080}/`;
-}
-
-function writeAlwaysLine(line) {
-  process.stdout.write(String(line) + "\n");
 }
 
 function formatDuration(seconds) {
