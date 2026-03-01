@@ -1873,6 +1873,7 @@ function renderDashboardHtml() {
           <div class="row"><div class="k">Lowdiff</div><div id="shares-lowdiff" class="v">-</div></div>
           <div class="row"><div class="k">Blocks Found</div><div id="blocks-found" class="v">-</div></div>
           <div class="row"><div class="k">Blocks Rejected</div><div id="blocks-rej" class="v">-</div></div>
+          <div class="row"><div class="k">Blocks Orphaned</div><div id="blocks-orphaned" class="v">-</div></div>
           <div class="row"><div class="k">Job Broadcasts</div><div id="job-bcasts" class="v">-</div></div>
         </div>
       </article>
@@ -1968,7 +1969,7 @@ function renderDashboardHtml() {
     };
 
     // Load all-time best from localStorage
-    let bestShareAllTime = JSON.parse(localStorage.getItem('pool-best-share') || 'null') || {
+    let bestShareAllTime = parseJsonFromStorage('pool-best-share', null) || {
       difficulty: 0,
       hash: '',
       worker: '',
@@ -1976,7 +1977,7 @@ function renderDashboardHtml() {
     };
 
     // Load blocks history from localStorage
-    let blocksHistory = JSON.parse(localStorage.getItem('pool-blocks-history') || '[]');
+    let blocksHistory = sanitizeBlocksHistory(parseJsonFromStorage('pool-blocks-history', []), 0, Date.now());
 
     const refs = {
       statusDot: d.getElementById("status-dot"),
@@ -2006,6 +2007,7 @@ function renderDashboardHtml() {
       sharesLowdiff: d.getElementById("shares-lowdiff"),
       blocksFound: d.getElementById("blocks-found"),
       blocksRej: d.getElementById("blocks-rej"),
+      blocksOrphaned: d.getElementById("blocks-orphaned"),
       jobBcasts: d.getElementById("job-bcasts"),
       heightChartMeta: d.getElementById("height-chart-meta"),
       tmplSource: d.getElementById("tmpl-source"),
@@ -2538,6 +2540,16 @@ function renderDashboardHtml() {
       return Number.isFinite(x) ? x : fallback;
     }
 
+    function parseJsonFromStorage(key, fallbackValue) {
+      try {
+        const raw = localStorage.getItem(key);
+        if (raw == null || raw === "") return fallbackValue;
+        return JSON.parse(raw);
+      } catch (_err) {
+        return fallbackValue;
+      }
+    }
+
     function fmtInt(n) { return new Intl.NumberFormat().format(Math.round(safeNum(n, 0))); }
     function fmtPct(n) { return Number.isFinite(n) ? (n * 100).toFixed(n < 0.1 ? 2 : 1) + "%" : "-"; }
     function fmtAgeMs(ms) {
@@ -2746,23 +2758,25 @@ function renderDashboardHtml() {
       const lowdiff = safeNum(stats.sharesLowDiff, 0);
       const blocksFound = safeNum(stats.blocksFound, 0);
       const blocksRejected = safeNum(stats.blocksRejected, 0);
+      const blocksOrphaned = safeNum(stats.blocksOrphaned, 0);
       const templatesFetched = safeNum(stats.templatesFetched, 0);
       const jobBroadcasts = safeNum(stats.jobBroadcasts, 0);
       const height = job ? safeNum(job.height, safeNum(stats.currentHeight, 0)) : safeNum(stats.currentHeight, 0);
 
       const blockCountIncreased = lastBlockCount !== null && blocksFound > lastBlockCount;
+      const syncedFromBackend = syncBlocksHistoryFromStats(stats, height, now, blockCountIncreased);
 
-      // Detect newly found block(s) while connected
-      if (blockCountIncreased) {
-        const added = addLatestBlockFromStats(stats, height, now, true);
-        if (!added) {
-          celebrateBlockFound(stats.lastFoundBlockHash || "");
+      if (!syncedFromBackend) {
+        // Fallback for older backends that don't send recentBlocks.
+        if (blockCountIncreased) {
+          const added = addLatestBlockFromStats(stats, height, now, true);
+          if (!added) {
+            celebrateBlockFound(stats.lastFoundBlockHash || "");
+          }
         }
-      }
-
-      // Keep recent blocks in sync with backend stats after reloads or missed events
-      if (blocksFound > 0) {
-        addLatestBlockFromStats(stats, height, now, false);
+        if (blocksFound > 0) {
+          addLatestBlockFromStats(stats, height, now, false);
+        }
       }
       lastBlockCount = blocksFound;
 
@@ -2824,6 +2838,7 @@ function renderDashboardHtml() {
           lowdiff,
           blocksFound,
           blocksRejected,
+          blocksOrphaned,
           templatesFetched,
           jobBroadcasts,
           height,
@@ -2904,9 +2919,7 @@ function renderDashboardHtml() {
 
     function addBlockToHistory(block) {
       blocksHistory.unshift(block);
-      if (blocksHistory.length > MAX_BLOCKS_HISTORY) {
-        blocksHistory.pop();
-      }
+      blocksHistory = sanitizeBlocksHistory(blocksHistory, block.height, block.timestamp);
       localStorage.setItem('pool-blocks-history', JSON.stringify(blocksHistory));
     }
 
@@ -2921,15 +2934,95 @@ function renderDashboardHtml() {
         return false;
       }
 
-      addBlockToHistory({
+      const normalized = normalizeBlockEntry({
         hash: blockHash,
         height: blockHeight,
         worker: stats.lastShareWorker || "unknown",
         timestamp: safeNum(stats.lastFoundBlockAt, fallbackTimestamp) || fallbackTimestamp
-      });
+      }, blockHeight, fallbackTimestamp);
+      if (!normalized) return false;
+      addBlockToHistory(normalized);
 
       if (celebrate) {
         celebrateBlockFound(blockHash);
+      }
+      return true;
+    }
+
+    function syncBlocksHistoryFromStats(stats, blockHeight, fallbackTimestamp, celebrate) {
+      const backendBlocks = sanitizeBlocksHistory(stats && stats.recentBlocks, blockHeight, fallbackTimestamp);
+      if (!backendBlocks.length) {
+        return false;
+      }
+
+      const changed = !blocksHistoryEqual(blocksHistory, backendBlocks);
+      const prevTopHash = blocksHistory.length > 0 ? blocksHistory[0].hash : "";
+      const nextTopHash = backendBlocks[0].hash;
+      if (changed) {
+        blocksHistory = backendBlocks;
+        localStorage.setItem('pool-blocks-history', JSON.stringify(blocksHistory));
+      }
+
+      if (celebrate && nextTopHash && nextTopHash !== prevTopHash) {
+        celebrateBlockFound(nextTopHash);
+      }
+      return true;
+    }
+
+    function sanitizeBlocksHistory(input, fallbackHeight, fallbackTimestamp) {
+      if (!Array.isArray(input)) return [];
+      const out = [];
+      const seenHashes = new Set();
+
+      for (let i = 0; i < input.length; i += 1) {
+        if (out.length >= MAX_BLOCKS_HISTORY) break;
+        const normalized = normalizeBlockEntry(input[i], fallbackHeight, fallbackTimestamp);
+        if (!normalized || seenHashes.has(normalized.hash)) continue;
+        seenHashes.add(normalized.hash);
+        out.push(normalized);
+      }
+      return out;
+    }
+
+    function normalizeBlockEntry(block, fallbackHeight, fallbackTimestamp) {
+      if (!block || typeof block !== "object") return null;
+      const hash = String(block.hash || "").trim();
+      if (!hash) return null;
+
+      const height = Math.max(0, Math.floor(safeNum(block.height, fallbackHeight)));
+      const workerRaw = String(block.worker || "").trim();
+      const worker = workerRaw === "" ? "unknown" : workerRaw.slice(0, 96);
+      const timestampRaw = safeNum(block.timestamp, fallbackTimestamp);
+      const timestamp = timestampRaw > 0 ? Math.floor(timestampRaw) : Math.floor(fallbackTimestamp);
+      const status = normalizeBlockStatus(block.status);
+      const confirmations = Math.max(0, Math.floor(safeNum(block.confirmations, 0)));
+      const coinbaseTxid = String(block.coinbaseTxid || "").trim();
+      const rewardSats = Math.max(0, Math.floor(safeNum(block.rewardSats, 0)));
+      const lastCheckedAt = Math.max(0, Math.floor(safeNum(block.lastCheckedAt, 0)));
+
+      return { hash, height, worker, timestamp, status, confirmations, coinbaseTxid, rewardSats, lastCheckedAt };
+    }
+
+    function normalizeBlockStatus(status) {
+      if (status === "confirmed" || status === "orphaned") return status;
+      return "pending";
+    }
+
+    function blocksHistoryEqual(a, b) {
+      if (!Array.isArray(a) || !Array.isArray(b)) return false;
+      if (a.length !== b.length) return false;
+      for (let i = 0; i < a.length; i += 1) {
+        const left = a[i] || {};
+        const right = b[i] || {};
+        if (left.hash !== right.hash) return false;
+        if (left.height !== right.height) return false;
+        if (left.worker !== right.worker) return false;
+        if (left.timestamp !== right.timestamp) return false;
+        if (left.status !== right.status) return false;
+        if (left.confirmations !== right.confirmations) return false;
+        if (left.coinbaseTxid !== right.coinbaseTxid) return false;
+        if (left.rewardSats !== right.rewardSats) return false;
+        if (left.lastCheckedAt !== right.lastCheckedAt) return false;
       }
       return true;
     }
@@ -3001,6 +3094,7 @@ function renderDashboardHtml() {
       animateNumber(refs.sharesLowdiff, d0.lowdiff);
       animateNumber(refs.blocksFound, d0.blocksFound);
       animateNumber(refs.blocksRej, d0.blocksRejected);
+      animateNumber(refs.blocksOrphaned, d0.blocksOrphaned);
       animateNumber(refs.jobBcasts, d0.jobBroadcasts);
       text(refs.totalsUpdated, "live");
 
@@ -3257,7 +3351,9 @@ function renderDashboardHtml() {
 
     function renderBlocksList() {
       const now = Date.now();
-      text(refs.blocksMeta, blocksHistory.length + " found");
+      const confirmed = blocksHistory.filter((b) => b.status === "confirmed").length;
+      const orphaned = blocksHistory.filter((b) => b.status === "orphaned").length;
+      text(refs.blocksMeta, blocksHistory.length + " found • " + confirmed + " confirmed • " + orphaned + " orphaned");
 
       if (blocksHistory.length === 0) {
         refs.blockList.innerHTML = '<div class="empty-state">No blocks found yet</div>';
@@ -3268,6 +3364,11 @@ function renderDashboardHtml() {
       for (const block of blocksHistory) {
         const age = fmtAgeMs(now - block.timestamp);
         const shortHash = block.hash ? block.hash.slice(0, 12) + '...' + block.hash.slice(-12) : 'unknown';
+        const statusText = fmtBlockStatus(block);
+        const rewardText = fmtBlockReward(block.rewardSats);
+        const coinbaseShort = block.coinbaseTxid
+          ? block.coinbaseTxid.slice(0, 10) + '...' + block.coinbaseTxid.slice(-10)
+          : '-';
 
         html += \`
           <div class="block-item">
@@ -3278,11 +3379,33 @@ function renderDashboardHtml() {
             <div class="block-hash" title="\${block.hash}" onclick="navigator.clipboard.writeText('\${block.hash}')">\${shortHash}</div>
             <div class="block-footer">
               <span>Found by: <span class="block-finder">\${escapeHtml(block.worker)}</span></span>
+              <span>\${statusText}</span>
+            </div>
+            <div class="block-footer">
+              <span>Reward: \${rewardText}</span>
+              <span title="\${block.coinbaseTxid || ''}">Coinbase: \${coinbaseShort}</span>
             </div>
           </div>
         \`;
       }
       refs.blockList.innerHTML = html;
+    }
+
+    function fmtBlockStatus(block) {
+      if (!block || typeof block !== "object") return "pending";
+      if (block.status === "confirmed") {
+        return "confirmed • " + fmtInt(block.confirmations || 0) + " conf";
+      }
+      if (block.status === "orphaned") {
+        return "orphaned";
+      }
+      return "pending";
+    }
+
+    function fmtBlockReward(rewardSats) {
+      const sats = Math.max(0, Math.floor(safeNum(rewardSats, 0)));
+      if (sats <= 0) return "-";
+      return (sats / 1e8).toFixed(8) + " DGB";
     }
 
     function renderHealthIndicators(stats, now, workerCount) {

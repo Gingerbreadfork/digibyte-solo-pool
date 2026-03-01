@@ -69,6 +69,7 @@ function loadConfig() {
     statsWalFlushMs: toInt(process.env.STATS_WAL_FLUSH_MS, 1000),
     statsCheckpointMs: toInt(process.env.STATS_CHECKPOINT_MS, 60000),
     statsRecentSharesMax: toInt(process.env.STATS_RECENT_SHARES_MAX, 240),
+    blockStatusCheckMs: toInt(process.env.BLOCK_STATUS_CHECK_MS, 30000),
 
     debugShareValidation: toBool(process.env.DEBUG_SHARE_VALIDATION, false),
     logLevel: process.env.LOG_LEVEL || "info"
@@ -115,6 +116,9 @@ function loadConfig() {
   }
   if (cfg.statsRecentSharesMax < 10) {
     throw new Error("STATS_RECENT_SHARES_MAX must be >= 10");
+  }
+  if (cfg.blockStatusCheckMs < 5000) {
+    throw new Error("BLOCK_STATUS_CHECK_MS must be >= 5000");
   }
   if (cfg.powAlgo !== "sha256d") {
     throw new Error("Only POW_ALGO=sha256d is currently supported");

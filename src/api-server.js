@@ -194,6 +194,9 @@ class ApiServer {
       pushMetric(lines, "pool_shares_lowdiff_total", this.stats.sharesLowDiff);
       pushMetric(lines, "pool_blocks_found_total", this.stats.blocksFound);
       pushMetric(lines, "pool_blocks_rejected_total", this.stats.blocksRejected);
+      pushMetric(lines, "pool_blocks_orphaned_total", this.stats.blocksOrphaned || 0);
+      pushMetric(lines, "pool_block_status_monitor_errors_total", this.stats.blockMonitorErrors || 0);
+      pushMetric(lines, "pool_block_status_last_check_unix_ms", this.stats.lastBlockCheckAt || 0);
       pushMetric(lines, "pool_current_height", this.stats.currentHeight || 0);
       pushMetric(lines, "pool_uptime_seconds", Math.floor((Date.now() - this.startedAt) / 1000));
 
@@ -340,7 +343,8 @@ class ApiServer {
       },
       blocks: {
         found: this.stats.blocksFound,
-        rejected: this.stats.blocksRejected
+        rejected: this.stats.blocksRejected,
+        orphaned: this.stats.blocksOrphaned || 0
       },
       bestShare: this.stats.bestShareDifficulty > 0 ? {
         difficulty: this.stats.bestShareDifficulty,
@@ -360,6 +364,8 @@ class ApiServer {
     const blocksFound = this.stats.blocksFound;
     const lastFoundBlockHash = this.stats.lastFoundBlockHash;
     const lastFoundBlockAt = this.stats.lastFoundBlockAt;
+    const blocksOrphaned = this.stats.blocksOrphaned || 0;
+    const recentBlocks = Array.isArray(this.stats.recentBlocks) ? this.stats.recentBlocks.slice(0, 10) : [];
 
     // Reset session stats
     this.stats.templatesFetched = 0;
@@ -383,6 +389,8 @@ class ApiServer {
     this.stats.blocksFound = blocksFound;
     this.stats.lastFoundBlockHash = lastFoundBlockHash;
     this.stats.lastFoundBlockAt = lastFoundBlockAt;
+    this.stats.blocksOrphaned = blocksOrphaned;
+    this.stats.recentBlocks = recentBlocks;
 
     // Reset pool start time for session stats
     this.startedAt = Date.now();

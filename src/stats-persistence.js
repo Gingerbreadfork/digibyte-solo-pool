@@ -7,6 +7,7 @@ const readline = require("node:readline");
 const SNAPSHOT_FILE = "stats-snapshot.json";
 const WAL_FILE = "stats.wal.ndjson";
 const SNAPSHOT_VERSION = 1;
+const MAX_RECENT_BLOCKS = 10;
 
 const NUMERIC_FIELDS = [
   "templatesFetched",
@@ -19,6 +20,7 @@ const NUMERIC_FIELDS = [
   "sharesLowDiff",
   "blocksFound",
   "blocksRejected",
+  "blocksOrphaned",
   "currentHeight",
   "lastTemplateAt",
   "lastTemplateFetchMs",
@@ -28,7 +30,9 @@ const NUMERIC_FIELDS = [
   "lastShareAt",
   "lastFoundBlockAt",
   "bestShareDifficulty",
-  "bestShareAt"
+  "bestShareAt",
+  "lastBlockCheckAt",
+  "blockMonitorErrors"
 ];
 
 const STRING_OR_NULL_FIELDS = [
@@ -36,7 +40,8 @@ const STRING_OR_NULL_FIELDS = [
   "lastTemplateSource",
   "lastShareWorker",
   "lastFoundBlockHash",
-  "bestShareWorker"
+  "bestShareWorker",
+  "blockMonitorLastError"
 ];
 
 class StatsPersistence {
@@ -313,6 +318,7 @@ function makeCompactStats(stats) {
   for (const field of STRING_OR_NULL_FIELDS) {
     compact[field] = sanitizeStringOrNull(src[field], 256);
   }
+  compact.recentBlocks = sanitizeRecentBlocks(src.recentBlocks, MAX_RECENT_BLOCKS);
 
   return compact;
 }
@@ -330,6 +336,7 @@ function applyCompactStats(target, src) {
   for (const field of STRING_OR_NULL_FIELDS) {
     target[field] = compact[field];
   }
+  target.recentBlocks = compact.recentBlocks;
 }
 
 function sanitizeCompactStats(src) {
@@ -341,6 +348,7 @@ function sanitizeCompactStats(src) {
   for (const field of STRING_OR_NULL_FIELDS) {
     out[field] = sanitizeStringOrNull(obj[field], 256);
   }
+  out.recentBlocks = sanitizeRecentBlocks(obj.recentBlocks, MAX_RECENT_BLOCKS);
   return out;
 }
 
@@ -362,6 +370,41 @@ function sanitizeRecentShares(input, maxItems) {
   }
 
   return out;
+}
+
+function sanitizeRecentBlocks(input, maxItems) {
+  if (!Array.isArray(input)) return [];
+  const safeMax = Math.max(1, Number(maxItems) || MAX_RECENT_BLOCKS);
+  const out = [];
+  const seenHashes = new Set();
+
+  for (let i = 0; i < input.length; i += 1) {
+    if (out.length >= safeMax) break;
+    const block = input[i] || {};
+    const hash = sanitizeString(block.hash, 128);
+    if (!hash || seenHashes.has(hash)) continue;
+    seenHashes.add(hash);
+
+    out.push({
+      hash,
+      height: sanitizeNumber(block.height),
+      worker: sanitizeString(block.worker || "unknown", 96),
+      timestamp: sanitizeNumber(block.timestamp),
+      status: sanitizeBlockStatus(block.status),
+      confirmations: sanitizeNumber(block.confirmations),
+      coinbaseTxid: sanitizeString(block.coinbaseTxid || "", 128),
+      rewardSats: sanitizeNumber(block.rewardSats),
+      lastCheckedAt: sanitizeNumber(block.lastCheckedAt)
+    });
+  }
+
+  return out;
+}
+
+function sanitizeBlockStatus(status) {
+  const value = String(status || "").trim().toLowerCase();
+  if (value === "confirmed" || value === "orphaned") return value;
+  return "pending";
 }
 
 function sanitizeNumber(value) {

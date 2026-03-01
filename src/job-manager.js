@@ -19,6 +19,11 @@ const {
   formatPrevhashForStratum
 } = require("./utils");
 
+const MAX_RECENT_BLOCKS = 10;
+const BLOCK_STATUS_PENDING = "pending";
+const BLOCK_STATUS_CONFIRMED = "confirmed";
+const BLOCK_STATUS_ORPHANED = "orphaned";
+
 class JobManager extends EventEmitter {
   constructor(config, logger, rpcClient, stats) {
     super();
@@ -41,6 +46,8 @@ class JobManager extends EventEmitter {
     this.templatePollFailureStreak = 0;
     this.lastTemplatePollFailureAt = 0;
     this.forceTemplateRefreshOnce = false;
+    this.blockStatusTimer = null;
+    this.stats.recentBlocks = sanitizeRecentBlocksForRuntime(this.stats.recentBlocks);
   }
 
   async init() {
@@ -59,6 +66,7 @@ class JobManager extends EventEmitter {
     if (this.config.enableLongpoll) {
       this.startLongpollLoop();
     }
+    this.startBlockStatusMonitor();
   }
 
   async stop() {
@@ -66,6 +74,10 @@ class JobManager extends EventEmitter {
     if (this.pollTimer) {
       clearTimeout(this.pollTimer);
       this.pollTimer = null;
+    }
+    if (this.blockStatusTimer) {
+      clearInterval(this.blockStatusTimer);
+      this.blockStatusTimer = null;
     }
   }
 
@@ -128,6 +140,128 @@ class JobManager extends EventEmitter {
       return healthyPollMs;
     }
     return baseMs;
+  }
+
+  startBlockStatusMonitor() {
+    const intervalMs = Math.max(5000, Number(this.config.blockStatusCheckMs || 30000));
+    const run = async () => {
+      try {
+        await this.updateBlockStatuses();
+      } catch (err) {
+        this.recordBlockStatusCheckError(err);
+      }
+    };
+
+    this.blockStatusTimer = setInterval(run, intervalMs);
+    this.blockStatusTimer.unref?.();
+    run();
+  }
+
+  async updateBlockStatuses() {
+    if (!Array.isArray(this.stats.recentBlocks) || this.stats.recentBlocks.length === 0) {
+      this.stats.lastBlockCheckAt = Date.now();
+      this.stats.blockMonitorLastError = null;
+      return;
+    }
+
+    const now = Date.now();
+    const next = [];
+    let hadErrors = false;
+    for (let i = 0; i < this.stats.recentBlocks.length; i += 1) {
+      const block = this.stats.recentBlocks[i];
+      if (!block || typeof block !== "object") continue;
+      try {
+        next.push(await this.refreshBlockStatus(block, now));
+      } catch (err) {
+        hadErrors = true;
+        this.recordBlockStatusCheckError(err);
+        const fallback = normalizeRuntimeBlockEntry(block);
+        if (fallback) {
+          fallback.lastCheckedAt = now;
+          next.push(fallback);
+        }
+      }
+    }
+
+    this.stats.recentBlocks = sanitizeRecentBlocksForRuntime(next);
+    this.stats.lastBlockCheckAt = now;
+    if (!hadErrors) {
+      this.stats.blockMonitorLastError = null;
+    }
+  }
+
+  async refreshBlockStatus(block, checkedAt) {
+    const out = normalizeRuntimeBlockEntry(block);
+    if (!out) return null;
+
+    const previousStatus = out.status;
+    const hash = out.hash;
+
+    try {
+      const header = await this.rpc.getBlockHeader(hash);
+      const confirmations = Number(header && header.confirmations);
+      if (Number.isFinite(confirmations) && confirmations > 0) {
+        out.status = BLOCK_STATUS_CONFIRMED;
+        out.confirmations = confirmations;
+      } else if (Number.isFinite(confirmations) && confirmations < 0) {
+        out.status = BLOCK_STATUS_ORPHANED;
+        out.confirmations = 0;
+      } else {
+        out.status = BLOCK_STATUS_PENDING;
+        out.confirmations = 0;
+      }
+
+      const headerHeight = Number(header && header.height);
+      if (Number.isFinite(headerHeight) && headerHeight > 0) {
+        out.height = Math.floor(headerHeight);
+      }
+    } catch (err) {
+      if (isRpcNotFoundError(err) && out.height > 0) {
+        const chainHeightHint = Math.max(0, Math.floor(Number(this.stats.currentHeight) || 0));
+        if (chainHeightHint > 0 && out.height >= chainHeightHint) {
+          out.status = BLOCK_STATUS_PENDING;
+          out.confirmations = 0;
+        } else {
+          try {
+            const mainHash = await this.rpc.getBlockHash(out.height);
+            const mainHashNorm = safeNormalizeHex(mainHash);
+            if (mainHashNorm && mainHashNorm === out.hash) {
+              out.status = BLOCK_STATUS_CONFIRMED;
+              out.confirmations = Math.max(1, out.confirmations);
+            } else if (mainHashNorm && mainHashNorm !== out.hash) {
+              out.status = BLOCK_STATUS_ORPHANED;
+              out.confirmations = 0;
+            }
+          } catch (heightErr) {
+            if (isRpcHeightOutOfRangeError(heightErr)) {
+              out.status = BLOCK_STATUS_PENDING;
+              out.confirmations = 0;
+            } else {
+              throw heightErr;
+            }
+          }
+        }
+      } else {
+        throw err;
+      }
+    }
+
+    out.lastCheckedAt = Math.max(0, Math.floor(Number(checkedAt) || 0));
+    if (out.status === BLOCK_STATUS_ORPHANED && previousStatus !== BLOCK_STATUS_ORPHANED) {
+      this.stats.blocksOrphaned = Math.max(0, Number(this.stats.blocksOrphaned) || 0) + 1;
+    }
+    return out;
+  }
+
+  recordBlockStatusCheckError(err) {
+    const message = err && err.message ? err.message : String(err);
+    this.stats.lastBlockCheckAt = Date.now();
+    this.stats.blockMonitorErrors = Math.max(0, Number(this.stats.blockMonitorErrors) || 0) + 1;
+    this.stats.blockMonitorLastError = String(message).slice(0, 256);
+    this.logger.warn("Block status monitor check failed", {
+      error: message,
+      blocksTracked: Array.isArray(this.stats.recentBlocks) ? this.stats.recentBlocks.length : 0
+    });
   }
 
   async refreshTemplate(source) {
@@ -541,8 +675,24 @@ class JobManager extends EventEmitter {
 
     if (submitResult === null) {
       this.stats.blocksFound += 1;
+      const foundAt = Date.now();
+      const coinbaseTxid = Buffer.from(doubleSha256(Buffer.from(blockCoinbaseHex, "hex")))
+        .reverse()
+        .toString("hex");
+      const rewardSats = Math.max(0, Math.floor(Number(job.template && job.template.coinbasevalue) || 0));
       this.stats.lastFoundBlockHash = shareResult.shareHashHex;
-      this.stats.lastFoundBlockAt = Date.now();
+      this.stats.lastFoundBlockAt = foundAt;
+      pushRecentBlock(this.stats, {
+        hash: shareResult.shareHashHex,
+        height: job.template.height,
+        worker: shareResult.workerName || "unknown",
+        timestamp: foundAt,
+        status: BLOCK_STATUS_PENDING,
+        confirmations: 0,
+        coinbaseTxid,
+        rewardSats,
+        lastCheckedAt: 0
+      });
       this.logger.info("Block candidate accepted by node", {
         blockHash: shareResult.shareHashHex,
         height: job.template.height,
@@ -1061,6 +1211,84 @@ function buildNotifyPayload(job, prevhashNotifyHex, cleanJobs) {
       cleanJobs
     ]
   };
+}
+
+function pushRecentBlock(stats, block) {
+  if (!stats || typeof stats !== "object") return;
+  stats.recentBlocks = sanitizeRecentBlocksForRuntime(stats.recentBlocks);
+  const entry = normalizeRuntimeBlockEntry(block);
+  if (!entry) return;
+  const deduped = stats.recentBlocks.filter((item) => item && item.hash !== entry.hash);
+  deduped.unshift(entry);
+  if (deduped.length > MAX_RECENT_BLOCKS) {
+    deduped.length = MAX_RECENT_BLOCKS;
+  }
+  stats.recentBlocks = deduped;
+}
+
+function sanitizeRecentBlocksForRuntime(input) {
+  if (!Array.isArray(input)) return [];
+  const out = [];
+  const seenHashes = new Set();
+  for (let i = 0; i < input.length; i += 1) {
+    if (out.length >= MAX_RECENT_BLOCKS) break;
+    const entry = normalizeRuntimeBlockEntry(input[i]);
+    if (!entry || seenHashes.has(entry.hash)) continue;
+    seenHashes.add(entry.hash);
+    out.push(entry);
+  }
+  return out;
+}
+
+function normalizeRuntimeBlockEntry(block) {
+  if (!block || typeof block !== "object") return null;
+  const hash = safeNormalizeHex(block.hash);
+  if (!hash) return null;
+
+  const workerRaw = String(block.worker || "").trim();
+  const worker = workerRaw === "" ? "unknown" : workerRaw.slice(0, 96);
+  const coinbaseTxid = safeNormalizeHex(block.coinbaseTxid);
+  const status = normalizeBlockStatus(block.status);
+  return {
+    hash,
+    height: Math.max(0, Math.floor(Number(block.height) || 0)),
+    worker,
+    timestamp: Math.max(0, Math.floor(Number(block.timestamp) || 0)),
+    status,
+    confirmations: Math.max(0, Math.floor(Number(block.confirmations) || 0)),
+    coinbaseTxid: coinbaseTxid || "",
+    rewardSats: Math.max(0, Math.floor(Number(block.rewardSats) || 0)),
+    lastCheckedAt: Math.max(0, Math.floor(Number(block.lastCheckedAt) || 0))
+  };
+}
+
+function normalizeBlockStatus(status) {
+  if (status === BLOCK_STATUS_CONFIRMED) return BLOCK_STATUS_CONFIRMED;
+  if (status === BLOCK_STATUS_ORPHANED) return BLOCK_STATUS_ORPHANED;
+  return BLOCK_STATUS_PENDING;
+}
+
+function safeNormalizeHex(value) {
+  try {
+    return normalizeHex(String(value || ""));
+  } catch (_err) {
+    return "";
+  }
+}
+
+function isRpcNotFoundError(err) {
+  if (!err) return false;
+  const msg = String(err.message || err);
+  return msg.includes("\"code\":-5")
+    || msg.includes("Block not found")
+    || msg.includes("Block hash not found");
+}
+
+function isRpcHeightOutOfRangeError(err) {
+  if (!err) return false;
+  const msg = String(err.message || err);
+  return msg.includes("Block height out of range")
+    || msg.includes("\"code\":-8");
 }
 
 module.exports = { JobManager };

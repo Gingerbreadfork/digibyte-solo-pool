@@ -30,6 +30,7 @@ async function main() {
     sharesLowDiff: 0,
     blocksFound: 0,
     blocksRejected: 0,
+    blocksOrphaned: 0,
     currentHeight: 0,
     currentNetworkBits: null,
     lastTemplateAt: 0,
@@ -45,7 +46,11 @@ async function main() {
     bestShareDifficulty: 0,
     bestShareWorker: null,
     bestShareAt: 0,
-    recentShares: []
+    lastBlockCheckAt: 0,
+    blockMonitorErrors: 0,
+    blockMonitorLastError: null,
+    recentShares: [],
+    recentBlocks: []
   };
   const statsPersistence = new StatsPersistence(config, logger.child("stats-persistence"), stats);
   await statsPersistence.start();

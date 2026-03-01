@@ -108,6 +108,14 @@ class RpcClient {
     return this.call("submitblock", params);
   }
 
+  async getBlockHeader(blockHash) {
+    return this.call("getblockheader", [String(blockHash), true]);
+  }
+
+  async getBlockHash(height) {
+    return this.call("getblockhash", [Number(height)]);
+  }
+
   async validateAddress(address) {
     try {
       const result = await this.call("validateaddress", [address]);
