@@ -578,7 +578,15 @@ class StratumServer extends EventEmitter {
       this.stats.recentShares = [];
     }
 
-    const difficulty = Number(share && share.shareDifficulty ? share.shareDifficulty : 0);
+    const shareDifficulty = Number(share && share.shareDifficulty ? share.shareDifficulty : 0);
+    const assignedDifficulty = Number(
+      share && share.assignedDifficulty
+        ? share.assignedDifficulty
+        : (client && client.difficultyNumber ? client.difficultyNumber : client && client.difficulty ? client.difficulty : 0)
+    );
+    const difficulty = (Number.isFinite(shareDifficulty) && shareDifficulty > 0)
+      ? shareDifficulty
+      : ((Number.isFinite(assignedDifficulty) && assignedDifficulty > 0) ? assignedDifficulty : 0);
     this.stats.recentShares.push({
       t: nowMs(),
       type: type === "rejected" ? "rejected" : "accepted",

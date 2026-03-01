@@ -62,6 +62,13 @@ function loadConfig() {
     maxJobSubmissionsTracked: toInt(process.env.MAX_JOB_SUBMISSIONS_TRACKED, 50000),
     gbtRules: splitRulesCsv(process.env.GBT_RULES || "segwit"),
 
+    statsPersistenceEnabled: toBool(process.env.STATS_PERSISTENCE_ENABLED, true),
+    statsPersistenceDir: process.env.STATS_PERSISTENCE_DIR || "data",
+    statsWalCaptureMs: toInt(process.env.STATS_WAL_CAPTURE_MS, 1000),
+    statsWalFlushMs: toInt(process.env.STATS_WAL_FLUSH_MS, 1000),
+    statsCheckpointMs: toInt(process.env.STATS_CHECKPOINT_MS, 60000),
+    statsRecentSharesMax: toInt(process.env.STATS_RECENT_SHARES_MAX, 240),
+
     debugShareValidation: toBool(process.env.DEBUG_SHARE_VALIDATION, false),
     logLevel: process.env.LOG_LEVEL || "info"
   };
@@ -95,6 +102,18 @@ function loadConfig() {
   }
   if (cfg.longpollHealthyGraceMs < 1000) {
     throw new Error("LONGPOLL_HEALTHY_GRACE_MS must be >= 1000");
+  }
+  if (cfg.statsWalCaptureMs < 250) {
+    throw new Error("STATS_WAL_CAPTURE_MS must be >= 250");
+  }
+  if (cfg.statsWalFlushMs < 100) {
+    throw new Error("STATS_WAL_FLUSH_MS must be >= 100");
+  }
+  if (cfg.statsCheckpointMs < 5000) {
+    throw new Error("STATS_CHECKPOINT_MS must be >= 5000");
+  }
+  if (cfg.statsRecentSharesMax < 10) {
+    throw new Error("STATS_RECENT_SHARES_MAX must be >= 10");
   }
   if (cfg.powAlgo !== "sha256d") {
     throw new Error("Only POW_ALGO=sha256d is currently supported");

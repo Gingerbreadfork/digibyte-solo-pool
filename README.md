@@ -422,6 +422,17 @@ LOG_LEVEL=info                           # Logging level: debug|info|warn|error
 DEBUG_SHARE_VALIDATION=false             # Extra diagnostics for share validation issues
 ```
 
+### Stats Persistence (No External Dependencies)
+
+```bash
+STATS_PERSISTENCE_ENABLED=true           # Persist pool stats to disk using snapshot + WAL
+STATS_PERSISTENCE_DIR=data               # Base directory for persistence files
+STATS_WAL_CAPTURE_MS=1000                # Capture interval for WAL records (in-memory snapshot)
+STATS_WAL_FLUSH_MS=1000                  # WAL flush interval to disk
+STATS_CHECKPOINT_MS=60000                # Full snapshot interval; WAL is truncated after checkpoint
+STATS_RECENT_SHARES_MAX=240              # Max recent share samples retained in snapshots
+```
+
 ## Next performance upgrades (practical)
 
 1. Add native hash validators for other DigiByte algos (scrypt/skein/qubit/odocrypt) via optional addon.

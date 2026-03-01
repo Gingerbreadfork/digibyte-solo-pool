@@ -8,6 +8,7 @@ const { RpcClient } = require("./rpc");
 const { JobManager } = require("./job-manager");
 const { StratumServer } = require("./stratum-server");
 const { ApiServer } = require("./api-server");
+const { StatsPersistence } = require("./stats-persistence");
 
 loadEnvFile(path.resolve(process.cwd(), ".env"));
 
@@ -46,6 +47,8 @@ async function main() {
     bestShareAt: 0,
     recentShares: []
   };
+  const statsPersistence = new StatsPersistence(config, logger, stats);
+  await statsPersistence.start();
 
   const rpc = new RpcClient(config, logger);
   const jobManager = new JobManager(config, logger, rpc, stats);
@@ -64,6 +67,7 @@ async function main() {
       stratum.stop();
       api.stop();
       await jobManager.stop();
+      await statsPersistence.stop();
     } finally {
       process.exit(0);
     }
