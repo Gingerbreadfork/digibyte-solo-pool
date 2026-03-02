@@ -1089,6 +1089,14 @@ function renderDashboardHtml() {
       white-space: nowrap;
     }
 
+    .zeros-bar {
+      font-family: var(--mono);
+      letter-spacing: 0.04em;
+      font-size: clamp(13px, 1.6vw, 18px);
+      color: var(--cyan);
+      text-shadow: 0 0 10px rgba(89, 179, 255, 0.3);
+    }
+
     .spectrometer-progress {
       position: relative;
       width: 100%;
@@ -1998,6 +2006,12 @@ function renderDashboardHtml() {
             <div class="luck-hint" id="ttb-hint">Based on current hashrate</div>
           </div>
           <div class="luck-item">
+            <div class="luck-label">Your Best Leading Zeros</div>
+            <div class="luck-value zeros-bar" id="leading-zeros-bar">-</div>
+            <div class="luck-hint" id="leading-zeros-text">Need a share hash to start scoring</div>
+            <div class="luck-hint" id="leading-zeros-hint">Target unknown</div>
+          </div>
+          <div class="luck-item">
             <div class="luck-label">Expected Blocks (EB)</div>
             <div class="luck-value" id="expected-blocks">-</div>
             <div class="luck-hint" id="expected-blocks-hint">No accepted share work yet</div>
@@ -2238,6 +2252,9 @@ function renderDashboardHtml() {
       bestShareAlltimeHint: d.getElementById("best-share-alltime-hint"),
       ttbEstimate: d.getElementById("ttb-estimate"),
       ttbHint: d.getElementById("ttb-hint"),
+      leadingZerosBar: d.getElementById("leading-zeros-bar"),
+      leadingZerosText: d.getElementById("leading-zeros-text"),
+      leadingZerosHint: d.getElementById("leading-zeros-hint"),
       expectedBlocks: d.getElementById("expected-blocks"),
       expectedBlocksHint: d.getElementById("expected-blocks-hint"),
       expectedBlocksBar: d.getElementById("expected-blocks-bar"),
@@ -3100,6 +3117,10 @@ function renderDashboardHtml() {
           bestShareDifficulty: safeNum(stats.bestShareDifficulty, 0),
           bestShareWorker: stats.bestShareWorker || null,
           bestShareAt: safeNum(stats.bestShareAt, 0),
+          bestLeadingZeros: Math.max(0, Math.floor(safeNum(stats.bestLeadingZeros, 0))),
+          bestLeadingZerosHash: stats.bestLeadingZerosHash || "",
+          bestLeadingZerosWorker: stats.bestLeadingZerosWorker || "",
+          bestLeadingZerosAt: safeNum(stats.bestLeadingZerosAt, 0),
           expectedBlocks: safeNum(stats.expectedBlocks, 0),
           topShares: sanitizeTopShares(stats.topShares, 20),
           networkDifficulty: safeNum(difficulty.current, 0),
@@ -3417,6 +3438,7 @@ function renderDashboardHtml() {
       renderWorkerList(workers);
       renderTimeline();
       renderLuckStats(j, d0, diff);
+      renderLeadingZerosScoreboard(j, s, d0, diff);
       renderShareSpectrometer(d0, diff);
       renderBlocksList();
       renderHealthIndicators(s, now, workers.length);
@@ -3716,6 +3738,89 @@ function renderDashboardHtml() {
         text(refs.ttbEstimate, '-');
         text(refs.ttbHint, 'Waiting for hashrate data');
       }
+    }
+
+    function renderLeadingZerosScoreboard(job, stats, derived, difficulty) {
+      const bestLeadingZeros = Math.max(0, Math.floor(safeNum(derived && derived.bestLeadingZeros, 0)));
+      const bitsHex = resolveBitsHex(job, stats, difficulty);
+      const neededLeadingZeros = estimateNeededLeadingZerosFromBits(bitsHex);
+      const bar = buildLeadingZerosBar(bestLeadingZeros, neededLeadingZeros);
+      text(refs.leadingZerosBar, bar);
+
+      if (neededLeadingZeros > 0) {
+        text(refs.leadingZerosText, bestLeadingZeros + " of " + neededLeadingZeros + " needed");
+      } else if (bestLeadingZeros > 0) {
+        text(refs.leadingZerosText, bestLeadingZeros + " best leading zeros so far");
+      } else {
+        text(refs.leadingZerosText, "Need a share hash to start scoring");
+      }
+
+      const bestHash = String(derived && derived.bestLeadingZerosHash ? derived.bestLeadingZerosHash : "").trim();
+      const bestWorker = String(derived && derived.bestLeadingZerosWorker ? derived.bestLeadingZerosWorker : "").trim();
+      const bestAt = Math.max(0, Math.floor(safeNum(derived && derived.bestLeadingZerosAt, 0)));
+      const shortHash = bestHash
+        ? (bestHash.slice(0, 8) + "..." + bestHash.slice(-8))
+        : "no hash";
+      const workerLabel = bestWorker || "unknown";
+      const whenLabel = bestAt > 0 ? fmtTsAge(bestAt) + " ago" : "unknown time";
+      const targetLabel = neededLeadingZeros > 0 ? ("target ~" + neededLeadingZeros + " zeros") : "target unavailable";
+      text(refs.leadingZerosHint, targetLabel + " • " + workerLabel + " • " + whenLabel + " • " + shortHash);
+    }
+
+    function resolveBitsHex(job, stats, difficulty) {
+      const candidates = [
+        difficulty && difficulty.bits,
+        stats && stats.currentNetworkBits,
+        job && job.bits
+      ];
+      for (let i = 0; i < candidates.length; i += 1) {
+        const normalized = normalizeBitsHex(candidates[i]);
+        if (normalized) return normalized;
+      }
+      return "";
+    }
+
+    function normalizeBitsHex(bitsHex) {
+      const raw = String(bitsHex || "").trim().toLowerCase().replace(/^0x/, "");
+      if (!raw || !/^[0-9a-f]+$/.test(raw)) return "";
+      const padded = raw.padStart(8, "0");
+      return padded.length >= 8 ? padded.slice(-8) : "";
+    }
+
+    function estimateNeededLeadingZerosFromBits(bitsHex) {
+      const targetHex = compactBitsToTargetHex(bitsHex);
+      if (!targetHex) return 0;
+      return targetHex.match(/^0*/)[0].length;
+    }
+
+    function compactBitsToTargetHex(bitsHex) {
+      const bits = normalizeBitsHex(bitsHex);
+      if (!bits) return "";
+      const exponent = parseInt(bits.slice(0, 2), 16);
+      const mantissa = parseInt(bits.slice(2), 16);
+      if (!Number.isFinite(exponent) || !Number.isFinite(mantissa) || mantissa <= 0) return "";
+
+      let target;
+      if (exponent <= 3) {
+        target = BigInt(mantissa) >> BigInt(8 * (3 - exponent));
+      } else {
+        target = BigInt(mantissa) << BigInt(8 * (exponent - 3));
+      }
+      const hex = target.toString(16).padStart(64, "0");
+      return hex.length > 64 ? hex.slice(-64) : hex;
+    }
+
+    function buildLeadingZerosBar(bestLeadingZeros, neededLeadingZeros) {
+      const width = 10;
+      const best = Math.max(0, Math.floor(safeNum(bestLeadingZeros, 0)));
+      const needed = Math.max(0, Math.floor(safeNum(neededLeadingZeros, 0)));
+      if (best <= 0 && needed <= 0) {
+        return "░".repeat(width);
+      }
+      const denom = Math.max(1, needed || best);
+      const ratio = Math.max(0, Math.min(1, best / denom));
+      const filled = Math.max(0, Math.min(width, Math.round(ratio * width)));
+      return "█".repeat(filled) + "░".repeat(width - filled);
     }
 
     function renderShareSpectrometer(derived, difficulty) {

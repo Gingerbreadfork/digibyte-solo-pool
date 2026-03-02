@@ -32,6 +32,8 @@ const NUMERIC_FIELDS = [
   "lastFoundBlockAt",
   "bestShareDifficulty",
   "bestShareAt",
+  "bestLeadingZeros",
+  "bestLeadingZerosAt",
   "lastBlockCheckAt",
   "blockMonitorErrors"
 ];
@@ -46,6 +48,8 @@ const STRING_OR_NULL_FIELDS = [
   "lastShareWorker",
   "lastFoundBlockHash",
   "bestShareWorker",
+  "bestLeadingZerosHash",
+  "bestLeadingZerosWorker",
   "blockMonitorLastError"
 ];
 

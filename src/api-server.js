@@ -206,6 +206,7 @@ class ApiServer {
       pushMetric(lines, "pool_shares_duplicate_total", this.stats.sharesDuplicate);
       pushMetric(lines, "pool_shares_lowdiff_total", this.stats.sharesLowDiff);
       pushMetric(lines, "pool_expected_blocks_accumulated", this.stats.expectedBlocks || 0);
+      pushMetric(lines, "pool_best_leading_zeros", this.stats.bestLeadingZeros || 0);
       pushMetric(lines, "pool_blocks_found_total", this.stats.blocksFound);
       pushMetric(lines, "pool_blocks_rejected_total", this.stats.blocksRejected);
       pushMetric(lines, "pool_blocks_orphaned_total", this.stats.blocksOrphaned || 0);
@@ -365,6 +366,11 @@ class ApiServer {
         worker: this.stats.bestShareWorker,
         age: this.stats.bestShareAt ? Math.floor((Date.now() - this.stats.bestShareAt) / 1000) + "s ago" : "never"
       } : null,
+      leadingZeros: this.stats.bestLeadingZeros > 0 ? {
+        count: Math.floor(Number(this.stats.bestLeadingZeros) || 0),
+        worker: this.stats.bestLeadingZerosWorker || null,
+        age: this.stats.bestLeadingZerosAt ? Math.floor((Date.now() - this.stats.bestLeadingZerosAt) / 1000) + "s ago" : "never"
+      } : null,
       spectrometer: {
         expectedBlocks: Number(this.stats.expectedBlocks || 0),
         topSharesTracked: Array.isArray(this.stats.topShares) ? this.stats.topShares.length : 0
@@ -379,6 +385,10 @@ class ApiServer {
     const bestShareDiff = this.stats.bestShareDifficulty;
     const bestShareWorker = this.stats.bestShareWorker;
     const bestShareAt = this.stats.bestShareAt;
+    const bestLeadingZeros = this.stats.bestLeadingZeros || 0;
+    const bestLeadingZerosHash = this.stats.bestLeadingZerosHash || null;
+    const bestLeadingZerosWorker = this.stats.bestLeadingZerosWorker || null;
+    const bestLeadingZerosAt = this.stats.bestLeadingZerosAt || 0;
     const blocksFound = this.stats.blocksFound;
     const lastFoundBlockHash = this.stats.lastFoundBlockHash;
     const lastFoundBlockAt = this.stats.lastFoundBlockAt;
@@ -407,6 +417,10 @@ class ApiServer {
     this.stats.bestShareDifficulty = bestShareDiff;
     this.stats.bestShareWorker = bestShareWorker;
     this.stats.bestShareAt = bestShareAt;
+    this.stats.bestLeadingZeros = bestLeadingZeros;
+    this.stats.bestLeadingZerosHash = bestLeadingZerosHash;
+    this.stats.bestLeadingZerosWorker = bestLeadingZerosWorker;
+    this.stats.bestLeadingZerosAt = bestLeadingZerosAt;
     this.stats.blocksFound = blocksFound;
     this.stats.lastFoundBlockHash = lastFoundBlockHash;
     this.stats.lastFoundBlockAt = lastFoundBlockAt;

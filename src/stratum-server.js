@@ -60,6 +60,7 @@ class StratumServer extends EventEmitter {
       this.stats.topShares = [];
     }
     this.stats.expectedBlocks = sanitizePositiveFloat(this.stats.expectedBlocks);
+    this.stats.bestLeadingZeros = sanitizePositiveInt(this.stats.bestLeadingZeros);
   }
 
   start() {
@@ -543,6 +544,7 @@ class StratumServer extends EventEmitter {
       }
       this.recordRejectedShare(share.code);
       this.recordShareSample("rejected", share, client);
+      this.updateLeadingZerosScoreboard(client, share, nowMs());
       this.logRejectedShare(client, share, jobId);
       this.maybeDownshiftDifficulty(client, share);
       this.maybeRotatePrevhashMode(client, share);
@@ -570,6 +572,7 @@ class StratumServer extends EventEmitter {
       this.stats.bestShareAt = acceptedAt;
     }
     this.updateShareSpectrometer(client, share, acceptedAt);
+    this.updateLeadingZerosScoreboard(client, share, acceptedAt);
 
     client.acceptedShares += 1;
     client.lowDiffStreak = 0;
@@ -1432,6 +1435,7 @@ class StratumServer extends EventEmitter {
       jobId: share.job.jobId,
       difficulty: Number(share.assignedDifficulty || client.difficulty),
       shareDifficulty: Number(share.shareDifficulty || 0),
+      leadingZeros: sanitizePositiveInt(share.leadingZeros),
       expectedBlocks: sanitizePositiveFloat(this.stats.expectedBlocks),
       blockCandidate: Boolean(share.isBlockCandidate),
       shareHash: share.shareHashHex
@@ -1571,6 +1575,23 @@ class StratumServer extends EventEmitter {
       shareHash: sanitizeShareHash(share && share.shareHashHex)
     };
     rememberTopShare(this.stats, entry, MAX_TOP_SHARES);
+  }
+
+  updateLeadingZerosScoreboard(client, share, acceptedAt) {
+    const shareHashHex = sanitizeShareHash(share && share.shareHashHex);
+    if (!shareHashHex) return;
+    const leadingZeros = countLeadingHexZeros(shareHashHex);
+    if (!Number.isFinite(leadingZeros) || leadingZeros < 0) return;
+
+    share.leadingZeros = leadingZeros;
+    const currentBest = sanitizePositiveInt(this.stats.bestLeadingZeros);
+    if (leadingZeros < currentBest) return;
+    if (leadingZeros === currentBest && this.stats.bestLeadingZerosHash === shareHashHex) return;
+
+    this.stats.bestLeadingZeros = leadingZeros;
+    this.stats.bestLeadingZerosHash = shareHashHex;
+    this.stats.bestLeadingZerosWorker = sanitizeWorkerName(client && client.workerName);
+    this.stats.bestLeadingZerosAt = Math.max(0, Math.floor(Number(acceptedAt) || 0));
   }
 
   checkRateLimit(ip) {
@@ -1726,6 +1747,12 @@ function sanitizePositiveFloat(value) {
   return n;
 }
 
+function sanitizePositiveInt(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n < 0) return 0;
+  return Math.floor(n);
+}
+
 function sanitizeWorkerName(value) {
   const str = String(value || "").trim();
   if (!str) return "unknown";
@@ -1735,6 +1762,11 @@ function sanitizeWorkerName(value) {
 function sanitizeShareHash(value) {
   const str = String(value || "").trim();
   return str ? str.slice(0, 128) : "";
+}
+
+function countLeadingHexZeros(hashHex) {
+  const normalized = sanitizeShareHash(hashHex).toLowerCase();
+  return normalized ? normalized.match(/^0*/)[0].length : 0;
 }
 
 module.exports = { StratumServer };
