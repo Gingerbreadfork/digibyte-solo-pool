@@ -783,10 +783,7 @@ class StratumServer extends EventEmitter {
       });
 
       if (this.config.enableVersionMaskSlicing && !maskResolution.sliceActive && maskResolution.reason) {
-        this.logger.warn("Version mask slicing fallback", {
-          clientId: client.id,
-          remote: client.remote,
-          worker: client.workerName,
+        this.logVersionMaskSlicingResolution(client, {
           reason: maskResolution.reason,
           baseMask: negotiatedMaskHex,
           effectiveMask: client.versionRollingMaskHex
@@ -906,10 +903,7 @@ class StratumServer extends EventEmitter {
       const resolution = this.resolveVersionRollingMaskForClient(c, c.versionRollingBaseMaskHex || c.versionRollingMaskHex);
       if (!resolution.sliceActive) {
         if (resolution.reason) {
-          this.logger.warn("Version mask slicing fallback", {
-            clientId: c.id,
-            remote: c.remote,
-            worker: c.workerName,
+          this.logVersionMaskSlicingResolution(c, {
             reason: resolution.reason,
             baseMask: c.versionRollingBaseMaskHex || c.versionRollingMaskHex || "00000000",
             effectiveMask: c.versionRollingMaskHex,
@@ -991,6 +985,35 @@ class StratumServer extends EventEmitter {
     if (client.versionRollingSliceRejectStreak < threshold) return;
 
     this.fallbackVersionMaskSlicing(client, `reject-streak:${share.code}:${client.versionRollingSliceRejectStreak}`);
+  }
+
+  logVersionMaskSlicingResolution(client, details) {
+    const fields = {
+      clientId: client.id,
+      remote: client.remote,
+      worker: client.workerName,
+      reason: details && details.reason ? String(details.reason) : "unspecified",
+      baseMask: details && details.baseMask ? String(details.baseMask) : "00000000",
+      effectiveMask: details && details.effectiveMask ? String(details.effectiveMask) : "00000000"
+    };
+    if (details && details.trigger) {
+      fields.trigger = String(details.trigger);
+    }
+
+    if (this.isExpectedVersionMaskSlicingReason(fields.reason)) {
+      this.logger.info("Version mask slicing not active", fields);
+      return;
+    }
+    this.logger.warn("Version mask slicing fallback", fields);
+  }
+
+  isExpectedVersionMaskSlicingReason(reason) {
+    return [
+      "feature-disabled",
+      "known-nerdaxe-compat",
+      "insufficient-compatible-miners",
+      "empty-base-mask"
+    ].includes(String(reason || ""));
   }
 
   fallbackVersionMaskSlicing(client, reason) {
