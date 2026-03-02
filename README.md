@@ -408,6 +408,9 @@ ENABLE_LONGPOLL=true                     # Enable longpoll for instant new block
 TEMPLATE_POLL_MS=1000                    # Template poll interval when longpoll unavailable
 TEMPLATE_POLL_MS_LONGPOLL_HEALTHY=5000   # Slower poll when longpoll is working
 LONGPOLL_HEALTHY_GRACE_MS=120000         # How long to consider longpoll healthy (2 minutes)
+ENABLE_NEW_BLOCK_FASTPATH=true           # On longpoll new block, send a minimal tx template first
+NEW_BLOCK_FASTPATH_TX_LIMIT=0            # Tx count for fastpath template (0 = near-empty block)
+ENABLE_SPECULATIVE_NEXT_TEMPLATE_PREBUILD=true # Prebuild N+1 coinbase/merkle artifacts in background
 TEMPLATE_FINGERPRINT_MODE=fast           # Template change detection: fast|full|prevhash
 KEEP_OLD_JOBS=8                          # Number of recent jobs to keep in memory
 MAX_JOB_SUBMISSIONS_TRACKED=50000        # Maximum dedupe entries per job

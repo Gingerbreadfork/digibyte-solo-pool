@@ -1,6 +1,7 @@
 "use strict";
 
 const EventEmitter = require("node:events");
+const { createHash } = require("node:crypto");
 const {
   DIFF1_TARGET,
   normalizeHex,
@@ -20,6 +21,8 @@ const {
 } = require("./utils");
 
 const MAX_RECENT_BLOCKS = 10;
+const MAX_TX_ARTIFACT_CACHE = 8;
+const MAX_COINBASE_PIECES_CACHE = 32;
 const BLOCK_STATUS_PENDING = "pending";
 const BLOCK_STATUS_CONFIRMED = "confirmed";
 const BLOCK_STATUS_ORPHANED = "orphaned";
@@ -47,6 +50,9 @@ class JobManager extends EventEmitter {
     this.lastTemplatePollFailureAt = 0;
     this.forceTemplateRefreshOnce = false;
     this.blockStatusTimer = null;
+    this.txArtifactsCache = new Map();
+    this.coinbasePiecesCache = new Map();
+    this.speculativePrebuildSeq = 0;
     this.stats.recentBlocks = sanitizeRecentBlocksForRuntime(this.stats.recentBlocks);
   }
 
@@ -71,6 +77,7 @@ class JobManager extends EventEmitter {
 
   async stop() {
     this.running = false;
+    this.speculativePrebuildSeq += 1;
     if (this.pollTimer) {
       clearTimeout(this.pollTimer);
       this.pollTimer = null;
@@ -352,33 +359,135 @@ class JobManager extends EventEmitter {
     if (fingerprint === this.lastTemplateFingerprint && source !== "startup" && !forceRefresh) {
       return;
     }
-    this.lastTemplateFingerprint = fingerprint;
 
-    const isNewPrev = !this.currentJob ||
-      this.currentJob.template.previousblockhash !== template.previousblockhash;
+    const previousJob = this.currentJob;
+    const isNewPrev = !previousJob ||
+      previousJob.template.previousblockhash !== template.previousblockhash;
     const prevhashEpoch = isNewPrev
       ? (++this.prevhashEpochSeq)
-      : (this.currentJob ? this.currentJob.prevhashEpoch : Math.max(1, this.prevhashEpochSeq));
-    const job = this.buildJobFromTemplate(template, isNewPrev, prevhashEpoch);
+      : (previousJob ? previousJob.prevhashEpoch : Math.max(1, this.prevhashEpochSeq));
+    const originalTxCount = countTemplateTransactions(template);
+
+    let fastpathBroadcasted = false;
+    if (this.config.enableNewBlockFastpath && source === "longpoll" && isNewPrev) {
+      const fastTemplate = buildTruncatedTemplate(template, this.config.newBlockFastpathTxLimit);
+      if (fastTemplate) {
+        fastpathBroadcasted = true;
+        const fastJob = this.buildJobFromTemplate(fastTemplate, true, prevhashEpoch, { templateVariant: "fastpath" });
+        this.publishJob(fastJob, source, { originalTxCount, isFollowup: false });
+      }
+    }
+
+    const fullJob = this.buildJobFromTemplate(template, isNewPrev || fastpathBroadcasted, prevhashEpoch, {
+      templateVariant: fastpathBroadcasted ? "full-followup" : "full"
+    });
+    this.publishJob(fullJob, source, { originalTxCount, isFollowup: fastpathBroadcasted });
+    this.scheduleSpeculativeNextTemplatePrebuild(template);
+    this.lastTemplateFingerprint = fingerprint;
+  }
+
+  publishJob(job, source, options) {
+    const opts = options || {};
     this.currentJob = job;
     this.jobs.set(job.jobId, job);
     this.pruneOldJobs();
 
-    this.stats.currentHeight = template.height || 0;
+    this.stats.currentHeight = job.template.height || 0;
     this.stats.lastTemplateAt = Date.now();
     this.stats.lastTemplateSource = source;
-    this.stats.currentNetworkBits = template.bits || null;
+    this.stats.currentNetworkBits = job.template.bits || null;
 
     this.emit("job", job);
 
+    const txCount = 1 + job.transactions.length;
+    const originalTxCount = 1 + Math.max(job.transactions.length, Number(opts.originalTxCount || 0));
     this.logger.info("New mining job", {
       source,
       jobId: job.jobId,
-      height: template.height,
-      txCount: 1 + job.transactions.length,
-      cleanJobs: isNewPrev,
-      segwit: job.segwit
+      height: job.template.height,
+      txCount,
+      originalTxCount,
+      cleanJobs: Boolean(job.cleanJobs),
+      segwit: job.segwit,
+      templateVariant: job.templateVariant,
+      txArtifactsCacheHit: Boolean(job.txArtifactsCacheHit),
+      coinbasePiecesCacheHit: Boolean(job.coinbasePiecesCacheHit),
+      followupFromFastpath: Boolean(opts.isFollowup)
     });
+  }
+
+  scheduleSpeculativeNextTemplatePrebuild(template) {
+    if (!this.config.enableSpeculativeNextTemplatePrebuild) return;
+    if (!template || typeof template !== "object") return;
+    if (!this.running) return;
+
+    const baseHeight = Math.max(0, Math.floor(Number(template.height) || 0));
+    if (baseHeight <= 0) return;
+
+    const baseCurtime = Math.max(0, Math.floor(Number(template.curtime) || 0));
+    const nextTemplate = {
+      ...template,
+      height: baseHeight + 1,
+      curtime: baseCurtime > 0 ? baseCurtime + 1 : baseCurtime,
+      mintime: Math.max(0, Math.floor(Number(template.mintime || template.curtime || 0))) + 1,
+      maxtime: Math.max(0, Math.floor(Number(template.maxtime || (template.curtime || 0) + 600))) + 1
+    };
+
+    const seq = ++this.speculativePrebuildSeq;
+    setImmediate(() => {
+      if (!this.running) return;
+      if (seq !== this.speculativePrebuildSeq) return;
+      try {
+        const txs = Array.isArray(nextTemplate.transactions) ? nextTemplate.transactions : [];
+        this.getOrBuildTxArtifacts(txs);
+        const segwitCommitmentScript = nextTemplate.default_witness_commitment
+          ? normalizeHex(nextTemplate.default_witness_commitment)
+          : "";
+        this.getOrBuildCoinbasePieces(nextTemplate, segwitCommitmentScript);
+      } catch (err) {
+        this.logger.debug("Speculative next-template prebuild failed", {
+          error: err.message,
+          height: nextTemplate.height || 0
+        });
+      }
+    });
+  }
+
+  getOrBuildTxArtifacts(txs) {
+    const key = buildTxArtifactsKey(txs);
+    const cached = readLruCacheEntry(this.txArtifactsCache, key);
+    if (cached) {
+      return { artifacts: cached, cacheHit: true };
+    }
+
+    const txidLeaves = txs.map((tx) => Buffer.from(reverseHex(getTemplateTxidHex(tx)), "hex"));
+    const merkleBranchesRaw = buildCoinbaseMerkleBranches(txidLeaves);
+    const artifacts = {
+      key,
+      merkleBranchesRaw,
+      merkleBranchesHex: merkleBranchesRaw.map((b) => b.toString("hex"))
+    };
+    writeLruCacheEntry(this.txArtifactsCache, key, artifacts, MAX_TX_ARTIFACT_CACHE);
+    return { artifacts, cacheHit: false };
+  }
+
+  getOrBuildCoinbasePieces(template, segwitCommitmentScript) {
+    const key = buildCoinbasePiecesKey(template, segwitCommitmentScript);
+    const cached = readLruCacheEntry(this.coinbasePiecesCache, key);
+    if (cached) {
+      return { coinbasePieces: cached, cacheHit: true };
+    }
+
+    const coinbasePieces = buildCoinbasePieces({
+      template,
+      payoutScriptHex: this.payoutScriptHex,
+      poolTag: this.config.poolTag,
+      extranonce1Size: this.config.extranonce1Size,
+      extranonce2Size: this.config.extranonce2Size,
+      segwitCommitmentScript
+    });
+    writeLruCacheEntry(this.coinbasePiecesCache, key, coinbasePieces, MAX_COINBASE_PIECES_CACHE);
+    return { coinbasePieces, cacheHit: false };
   }
 
   pruneOldJobs() {
@@ -451,29 +560,18 @@ class JobManager extends EventEmitter {
     );
   }
 
-  buildJobFromTemplate(template, cleanJobs, prevhashEpoch) {
+  buildJobFromTemplate(template, cleanJobs, prevhashEpoch, options) {
+    const opts = options || {};
     const txs = Array.isArray(template.transactions) ? template.transactions : [];
     const segwitCommitmentScript = template.default_witness_commitment
       ? normalizeHex(template.default_witness_commitment)
       : "";
 
-    const coinbasePieces = buildCoinbasePieces({
-      template,
-      payoutScriptHex: this.payoutScriptHex,
-      poolTag: this.config.poolTag,
-      extranonce1Size: this.config.extranonce1Size,
-      extranonce2Size: this.config.extranonce2Size,
-      segwitCommitmentScript
-    });
-
-    const txidLeaves = txs.map((tx) => {
-      const txidHex = tx.txid || tx.hash;
-      if (!txidHex) throw new Error("GBT transaction missing txid/hash");
-      return Buffer.from(reverseHex(txidHex), "hex");
-    });
-
-    const merkleBranchesRaw = buildCoinbaseMerkleBranches(txidLeaves);
-    const merkleBranchesHex = merkleBranchesRaw.map((b) => b.toString("hex"));
+    const coinbaseResult = this.getOrBuildCoinbasePieces(template, segwitCommitmentScript);
+    const coinbasePieces = coinbaseResult.coinbasePieces;
+    const txArtifactsResult = this.getOrBuildTxArtifacts(txs);
+    const merkleBranchesRaw = txArtifactsResult.artifacts.merkleBranchesRaw;
+    const merkleBranchesHex = txArtifactsResult.artifacts.merkleBranchesHex;
 
     const prevhashHex = normalizeHex(template.previousblockhash);
     const networkTarget = resolveTemplateTarget(template);
@@ -488,6 +586,9 @@ class JobManager extends EventEmitter {
       cleanJobs,
       prevhashEpoch: Math.max(1, Number(prevhashEpoch || 1)),
       segwit: Boolean(segwitCommitmentScript),
+      templateVariant: opts.templateVariant || "full",
+      txArtifactsCacheHit: txArtifactsResult.cacheHit,
+      coinbasePiecesCacheHit: coinbaseResult.cacheHit,
       template,
       workId: template.workid ? String(template.workid) : "",
       templateAlgo: extractTemplateAlgo(template) || "",
@@ -1129,6 +1230,72 @@ function buildTemplateFingerprint(template, mode) {
     template.default_witness_commitment || "",
     txComponent
   ].join(":");
+}
+
+function countTemplateTransactions(template) {
+  return Array.isArray(template && template.transactions) ? template.transactions.length : 0;
+}
+
+function buildTruncatedTemplate(template, txLimit) {
+  const txs = Array.isArray(template && template.transactions) ? template.transactions : [];
+  const limit = Math.max(0, Math.floor(Number(txLimit || 0)));
+  if (txs.length <= limit) {
+    return null;
+  }
+  return {
+    ...template,
+    transactions: txs.slice(0, limit)
+  };
+}
+
+function getTemplateTxidHex(tx) {
+  const txidHex = tx && (tx.txid || tx.hash);
+  if (!txidHex) throw new Error("GBT transaction missing txid/hash");
+  return normalizeHex(txidHex);
+}
+
+function buildTxArtifactsKey(txs) {
+  if (!Array.isArray(txs) || txs.length === 0) return "0";
+  const hash = createHash("sha256");
+  hash.update(String(txs.length));
+  for (let i = 0; i < txs.length; i += 1) {
+    hash.update(":");
+    hash.update(getTemplateTxidHex(txs[i]));
+  }
+  return `sha256:${hash.digest("hex")}`;
+}
+
+function buildCoinbasePiecesKey(template, segwitCommitmentScript) {
+  const coinbaseAuxFlags = template && template.coinbaseaux && template.coinbaseaux.flags
+    ? normalizeHex(template.coinbaseaux.flags)
+    : "";
+  return [
+    Math.max(0, Math.floor(Number(template && template.height) || 0)),
+    Math.max(0, Math.floor(Number(template && template.coinbasevalue) || 0)),
+    coinbaseAuxFlags,
+    segwitCommitmentScript || ""
+  ].join(":");
+}
+
+function readLruCacheEntry(cache, key) {
+  if (!cache || !cache.has(key)) return null;
+  const value = cache.get(key);
+  cache.delete(key);
+  cache.set(key, value);
+  return value;
+}
+
+function writeLruCacheEntry(cache, key, value, maxEntries) {
+  if (!cache) return;
+  if (cache.has(key)) {
+    cache.delete(key);
+  }
+  cache.set(key, value);
+  const max = Math.max(1, Number(maxEntries || 1));
+  while (cache.size > max) {
+    const oldestKey = cache.keys().next().value;
+    cache.delete(oldestKey);
+  }
 }
 
 function resolveTemplateTarget(template) {

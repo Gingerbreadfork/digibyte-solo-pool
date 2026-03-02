@@ -58,6 +58,9 @@ function loadConfig() {
     templatePollMs: toInt(process.env.TEMPLATE_POLL_MS, 1000),
     templatePollMsLongpollHealthy: toInt(process.env.TEMPLATE_POLL_MS_LONGPOLL_HEALTHY, 5000),
     longpollHealthyGraceMs: toInt(process.env.LONGPOLL_HEALTHY_GRACE_MS, 120000),
+    enableNewBlockFastpath: toBool(process.env.ENABLE_NEW_BLOCK_FASTPATH, true),
+    newBlockFastpathTxLimit: toInt(process.env.NEW_BLOCK_FASTPATH_TX_LIMIT, 0),
+    enableSpeculativeNextTemplatePrebuild: toBool(process.env.ENABLE_SPECULATIVE_NEXT_TEMPLATE_PREBUILD, true),
     templateFingerprintMode: (process.env.TEMPLATE_FINGERPRINT_MODE || "fast").toLowerCase(),
     keepOldJobs: toInt(process.env.KEEP_OLD_JOBS, 8),
     maxJobSubmissionsTracked: toInt(process.env.MAX_JOB_SUBMISSIONS_TRACKED, 50000),
@@ -104,6 +107,12 @@ function loadConfig() {
   }
   if (cfg.longpollHealthyGraceMs < 1000) {
     throw new Error("LONGPOLL_HEALTHY_GRACE_MS must be >= 1000");
+  }
+  if (cfg.newBlockFastpathTxLimit < 0) {
+    throw new Error("NEW_BLOCK_FASTPATH_TX_LIMIT must be >= 0");
+  }
+  if (cfg.newBlockFastpathTxLimit > 10000) {
+    throw new Error("NEW_BLOCK_FASTPATH_TX_LIMIT must be <= 10000");
   }
   if (cfg.statsWalCaptureMs < 250) {
     throw new Error("STATS_WAL_CAPTURE_MS must be >= 250");

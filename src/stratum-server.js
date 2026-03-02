@@ -801,7 +801,8 @@ class StratumServer extends EventEmitter {
         jobId: job.jobId,
         height: job.template.height,
         clients: pushed,
-        cleanJobs: Boolean(job.cleanJobs)
+        cleanJobs: Boolean(job.cleanJobs),
+        templateVariant: job.templateVariant || "full"
       });
     }
   }
