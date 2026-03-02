@@ -53,6 +53,7 @@ class JobManager extends EventEmitter {
     this.txArtifactsCache = new Map();
     this.coinbasePiecesCache = new Map();
     this.speculativePrebuildSeq = 0;
+    this.lastNonceSpaceRefreshAt = 0;
     this.stats.recentBlocks = sanitizeRecentBlocksForRuntime(this.stats.recentBlocks);
   }
 
@@ -842,6 +843,60 @@ class JobManager extends EventEmitter {
     });
   }
 
+  requestNonceSpaceRefresh(context) {
+    if (!this.running) return false;
+    if (!this.currentJob || !this.currentJob.template) return false;
+
+    const now = nowMs();
+    const globalCooldownMs = Math.max(1000, Number(this.config.nonceSpaceRefreshCooldownMs || 8000));
+    if ((now - this.lastNonceSpaceRefreshAt) < Math.floor(globalCooldownMs / 2)) {
+      return false;
+    }
+
+    const baseJob = this.currentJob;
+    const baseTemplate = baseJob.template;
+    const baseCurtime = Math.max(0, Math.floor(Number(baseTemplate.curtime) || 0));
+    const minTime = Math.max(0, Math.floor(Number(baseTemplate.mintime || baseCurtime || 0)));
+    const maxTimeHint = Math.max(
+      minTime,
+      Math.floor(Number(baseTemplate.maxtime || (baseCurtime || 0) + 600))
+    );
+    const nowSec = Math.floor(now / 1000);
+    const nextCurtime = Math.max(minTime, Math.min(maxTimeHint, Math.max(nowSec, baseCurtime + 1)));
+    if (nextCurtime <= baseCurtime) {
+      return false;
+    }
+
+    const refreshedTemplate = {
+      ...baseTemplate,
+      curtime: nextCurtime,
+      mintime: minTime,
+      maxtime: maxTimeHint
+    };
+
+    const refreshedJob = this.buildJobFromTemplate(
+      refreshedTemplate,
+      false,
+      baseJob.prevhashEpoch,
+      { templateVariant: "nonce-refresh" }
+    );
+    this.publishJob(refreshedJob, "nonce-refresh", {
+      originalTxCount: countTemplateTransactions(baseTemplate),
+      isFollowup: false
+    });
+    this.lastNonceSpaceRefreshAt = now;
+
+    const fields = context && typeof context === "object" ? context : {};
+    this.logger.info("Refreshed nonce space for active job", {
+      trigger: fields.trigger || "unknown",
+      clientId: fields.clientId || null,
+      worker: fields.worker || null,
+      previousNtime: baseCurtime,
+      newNtime: nextCurtime
+    });
+    return true;
+  }
+
   maybeLogShareValidationDiagnostics({
     client,
     job,
@@ -1138,7 +1193,7 @@ function resolveShareVersionHex({
   }
 
   if (versionBitsHex === undefined || versionBitsHex === null || String(versionBitsHex) === "") {
-    return { ok: false, message: "Missing version rolling bits in submit" };
+    return { ok: true, versionHex: baseHex, versionBitsHex: null };
   }
 
   const bitsHex = normalizeHex(String(versionBitsHex)).padStart(8, "0");
@@ -1149,12 +1204,16 @@ function resolveShareVersionHex({
   const baseVersion = Number.parseInt(baseHex, 16) >>> 0;
   const mask = Number.parseInt(maskHex, 16) >>> 0;
   const bits = Number.parseInt(bitsHex, 16) >>> 0;
-  const disallowed = (bits & (~mask >>> 0)) >>> 0;
-  if (disallowed !== 0) {
+  const baseFixedBits = (baseVersion & (~mask >>> 0)) >>> 0;
+  const submittedFixedBits = (bits & (~mask >>> 0)) >>> 0;
+
+  // Some miners submit only masked rolling bits (expected), while others submit the full
+  // 32-bit version with fixed bits included. Accept both forms if fixed bits are compatible.
+  if (submittedFixedBits !== 0 && submittedFixedBits !== baseFixedBits) {
     return { ok: false, message: "version rolling bits outside negotiated mask" };
   }
 
-  const version = ((baseVersion & (~mask >>> 0)) | (bits & mask)) >>> 0;
+  const version = (baseFixedBits | (bits & mask)) >>> 0;
   return {
     ok: true,
     versionHex: toFixedHexU32(version),

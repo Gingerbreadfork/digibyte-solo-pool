@@ -47,8 +47,11 @@ High-priority goals for this build:
 ## What it is
 
 - Raw TCP Stratum server (`mining.subscribe`, `authorize`, `notify`, `submit`)
+- `mining.configure` support for version-rolling (overt ASICBoost) negotiation
 - Direct DigiByte JSON-RPC `getblocktemplate` + `submitblock`
 - Longpoll support for fast new-block propagation
+- Two-stage new-block propagation: fast near-empty template, then full template
+- Per-connection extranonce1 partitioning (prevents active miner nonce-space overlap)
 - In-memory solo pool state (no DB, no web framework overhead)
 - Real-time dashboard via Server-Sent Events (zero dependencies)
 - Status endpoints: `/healthz`, `/stats`, `/events`, `/metrics`
@@ -383,6 +386,8 @@ VARDIFF_RETARGET_EVERY_SHARES=4          # Retarget difficulty every N shares
 VARDIFF_MAX_DIFFICULTY=16384             # Maximum allowed difficulty
 EXTRANONCE1_SIZE=4                       # Extranonce1 size in bytes (2-16)
 EXTRANONCE2_SIZE=8                       # Extranonce2 size in bytes (2-16)
+VERSION_ROLLING_MASK=1fffe000           # Overt ASICBoost mask advertised via mining.configure
+VERSION_ROLLING_MIN_BIT_COUNT=1         # Minimum rolling bits requested from miners
 ```
 
 ### Pool Configuration
@@ -411,6 +416,10 @@ LONGPOLL_HEALTHY_GRACE_MS=120000         # How long to consider longpoll healthy
 ENABLE_NEW_BLOCK_FASTPATH=true           # On longpoll new block, send a minimal tx template first
 NEW_BLOCK_FASTPATH_TX_LIMIT=0            # Tx count for fastpath template (0 = near-empty block)
 ENABLE_SPECULATIVE_NEXT_TEMPLATE_PREBUILD=true # Prebuild N+1 coinbase/merkle artifacts in background
+ENABLE_PROACTIVE_NONCE_SPACE_REFRESH=true # Proactively refresh active job nonce space for fast miners
+NONCE_SPACE_REFRESH_FAST_SHARE_MS=2000   # Trigger refresh when miner avg share interval is at/under this
+NONCE_SPACE_REFRESH_COOLDOWN_MS=8000     # Min ms between nonce-space refreshes per miner
+NONCE_SPACE_REFRESH_DUPLICATE_STREAK=3   # Trigger refresh after N consecutive duplicate shares
 TEMPLATE_FINGERPRINT_MODE=fast           # Template change detection: fast|full|prevhash
 KEEP_OLD_JOBS=8                          # Number of recent jobs to keep in memory
 MAX_JOB_SUBMISSIONS_TRACKED=50000        # Maximum dedupe entries per job

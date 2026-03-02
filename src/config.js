@@ -4,7 +4,8 @@ const {
   toBool,
   toInt,
   toFloat,
-  splitRulesCsv
+  splitRulesCsv,
+  normalizeHex
 } = require("./utils");
 
 function loadConfig() {
@@ -53,6 +54,8 @@ function loadConfig() {
 
     allowAnyUser: toBool(process.env.ALLOW_ANY_USER, true),
     minerAuthToken: process.env.MINER_AUTH_TOKEN || "",
+    versionRollingMaskHex: (process.env.VERSION_ROLLING_MASK || "1fffe000"),
+    versionRollingMinBitCount: toInt(process.env.VERSION_ROLLING_MIN_BIT_COUNT, 1),
 
     enableLongpoll: toBool(process.env.ENABLE_LONGPOLL, true),
     templatePollMs: toInt(process.env.TEMPLATE_POLL_MS, 1000),
@@ -61,6 +64,10 @@ function loadConfig() {
     enableNewBlockFastpath: toBool(process.env.ENABLE_NEW_BLOCK_FASTPATH, true),
     newBlockFastpathTxLimit: toInt(process.env.NEW_BLOCK_FASTPATH_TX_LIMIT, 0),
     enableSpeculativeNextTemplatePrebuild: toBool(process.env.ENABLE_SPECULATIVE_NEXT_TEMPLATE_PREBUILD, true),
+    enableProactiveNonceSpaceRefresh: toBool(process.env.ENABLE_PROACTIVE_NONCE_SPACE_REFRESH, true),
+    nonceSpaceRefreshFastShareMs: toInt(process.env.NONCE_SPACE_REFRESH_FAST_SHARE_MS, 2000),
+    nonceSpaceRefreshCooldownMs: toInt(process.env.NONCE_SPACE_REFRESH_COOLDOWN_MS, 8000),
+    nonceSpaceRefreshDuplicateStreak: toInt(process.env.NONCE_SPACE_REFRESH_DUPLICATE_STREAK, 3),
     templateFingerprintMode: (process.env.TEMPLATE_FINGERPRINT_MODE || "fast").toLowerCase(),
     keepOldJobs: toInt(process.env.KEEP_OLD_JOBS, 8),
     maxJobSubmissionsTracked: toInt(process.env.MAX_JOB_SUBMISSIONS_TRACKED, 50000),
@@ -96,6 +103,13 @@ function loadConfig() {
   if (cfg.varDiffRetargetEveryShares < 1) {
     throw new Error("VARDIFF_RETARGET_EVERY_SHARES must be >= 1");
   }
+  cfg.versionRollingMaskHex = normalizeHex(String(cfg.versionRollingMaskHex || "")).padStart(8, "0");
+  if (cfg.versionRollingMaskHex.length !== 8) {
+    throw new Error("VERSION_ROLLING_MASK must be a 4-byte hex mask");
+  }
+  if (cfg.versionRollingMinBitCount < 0 || cfg.versionRollingMinBitCount > 32) {
+    throw new Error("VERSION_ROLLING_MIN_BIT_COUNT must be between 0 and 32");
+  }
   if (cfg.nearCandidatePrewarmFactor < 2) {
     throw new Error("NEAR_CANDIDATE_PREWARM_FACTOR must be >= 2");
   }
@@ -113,6 +127,15 @@ function loadConfig() {
   }
   if (cfg.newBlockFastpathTxLimit > 10000) {
     throw new Error("NEW_BLOCK_FASTPATH_TX_LIMIT must be <= 10000");
+  }
+  if (cfg.nonceSpaceRefreshFastShareMs < 250) {
+    throw new Error("NONCE_SPACE_REFRESH_FAST_SHARE_MS must be >= 250");
+  }
+  if (cfg.nonceSpaceRefreshCooldownMs < 1000) {
+    throw new Error("NONCE_SPACE_REFRESH_COOLDOWN_MS must be >= 1000");
+  }
+  if (cfg.nonceSpaceRefreshDuplicateStreak < 1) {
+    throw new Error("NONCE_SPACE_REFRESH_DUPLICATE_STREAK must be >= 1");
   }
   if (cfg.statsWalCaptureMs < 250) {
     throw new Error("STATS_WAL_CAPTURE_MS must be >= 250");

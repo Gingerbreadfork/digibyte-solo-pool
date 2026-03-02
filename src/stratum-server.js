@@ -11,8 +11,6 @@ const {
   toFixedHexU32
 } = require("./utils");
 
-const SERVER_VERSION_ROLLING_MASK_HEX = "1fffe000";
-
 const STRATUM_ERRORS = {
   unauthorized: [24, "Unauthorized worker", null],
   notsubscribed: [25, "Not subscribed", null],
@@ -203,9 +201,12 @@ class StratumServer extends EventEmitter {
       prevhashModeSwitches: 0,
       versionRollingEnabled: false,
       versionRollingMaskHex: "00000000",
+      versionRollingMinBitCount: 0,
       lastAcceptedShareAt: 0,
       avgAcceptedShareIntervalMs: null,
-      lastVarDiffRetargetAt: 0
+      lastVarDiffRetargetAt: 0,
+      duplicateShareStreak: 0,
+      lastNonceSpaceRefreshAt: 0
     };
     client.extranonce1Raw = Buffer.from(client.extranonce1Hex, "hex");
     this.setClientDifficulty(client, this.config.baseDifficulty, { resetSent: false });
@@ -222,6 +223,7 @@ class StratumServer extends EventEmitter {
     this.logger.info("Miner connected", {
       clientId,
       remote: client.remote,
+      extranonce1: client.extranonce1Hex,
       connectedClients: this.clients.size,
       clientsFromIp: this.connectionsByIp.get(ip).size
     });
@@ -502,11 +504,17 @@ class StratumServer extends EventEmitter {
       if (share.code === "lowdiff") {
         client.lowDiffStreak += 1;
       }
+      if (share.code === "duplicate") {
+        client.duplicateShareStreak += 1;
+      } else {
+        client.duplicateShareStreak = 0;
+      }
       this.recordRejectedShare(share.code);
       this.recordShareSample("rejected", share, client);
       this.logRejectedShare(client, share, jobId);
       this.maybeDownshiftDifficulty(client, share);
       this.maybeRotatePrevhashMode(client, share);
+      this.maybeRefreshNonceSpaceAfterReject(client, share);
       this.send(client, {
         id,
         result: null,
@@ -530,6 +538,7 @@ class StratumServer extends EventEmitter {
 
     client.acceptedShares += 1;
     client.lowDiffStreak = 0;
+    client.duplicateShareStreak = 0;
     this.recordShareSample("accepted", share, client);
     this.recordAcceptedShareTiming(client, acceptedAt);
     this.logAcceptedShare(client, share);
@@ -549,6 +558,7 @@ class StratumServer extends EventEmitter {
     }
 
     this.maybeRetargetDifficulty(client, share, acceptedAt);
+    this.maybeRefreshNonceSpaceAfterAcceptedShare(client, acceptedAt);
   }
 
   recordRejectedShare(code) {
@@ -701,12 +711,23 @@ class StratumServer extends EventEmitter {
     if (extensions.includes("version-rolling")) {
       const negotiatedMaskHex = negotiateVersionRollingMask(
         options["version-rolling.mask"],
-        SERVER_VERSION_ROLLING_MASK_HEX
+        this.config.versionRollingMaskHex
       );
       client.versionRollingMaskHex = negotiatedMaskHex;
+      client.versionRollingMinBitCount = Math.max(0, Number(this.config.versionRollingMinBitCount || 0));
       client.versionRollingEnabled = negotiatedMaskHex !== "00000000";
       result["version-rolling"] = client.versionRollingEnabled;
       result["version-rolling.mask"] = negotiatedMaskHex;
+      result["version-rolling.min-bit-count"] = client.versionRollingMinBitCount;
+
+      this.logger.info("Negotiated version rolling", {
+        clientId: client.id,
+        remote: client.remote,
+        worker: client.workerName,
+        enabled: client.versionRollingEnabled,
+        mask: negotiatedMaskHex,
+        minBitCount: client.versionRollingMinBitCount
+      });
     }
 
     this.send(client, { id, result, error: null });
@@ -740,7 +761,57 @@ class StratumServer extends EventEmitter {
     });
   }
 
+  maybeRefreshNonceSpaceAfterAcceptedShare(client, acceptedAt) {
+    if (!this.config.enableProactiveNonceSpaceRefresh) return;
+    const avgMs = Number(client.avgAcceptedShareIntervalMs || 0);
+    if (!Number.isFinite(avgMs) || avgMs <= 0) return;
+
+    const fastShareMs = Math.max(250, Number(this.config.nonceSpaceRefreshFastShareMs || 2000));
+    if (avgMs > fastShareMs) return;
+    if (!this.canTriggerNonceSpaceRefresh(client, acceptedAt)) return;
+
+    const refreshed = this.jobManager.requestNonceSpaceRefresh?.({
+      trigger: "fast-share-rate",
+      clientId: client.id,
+      worker: client.workerName,
+      avgAcceptedShareIntervalMs: avgMs
+    });
+    if (refreshed) {
+      client.lastNonceSpaceRefreshAt = acceptedAt;
+    }
+  }
+
+  maybeRefreshNonceSpaceAfterReject(client, share) {
+    if (!this.config.enableProactiveNonceSpaceRefresh) return;
+    if (!share || share.code !== "duplicate") return;
+
+    const duplicateStreakNeeded = Math.max(1, Number(this.config.nonceSpaceRefreshDuplicateStreak || 3));
+    if (client.duplicateShareStreak < duplicateStreakNeeded) return;
+
+    const now = nowMs();
+    if (!this.canTriggerNonceSpaceRefresh(client, now)) return;
+
+    const refreshed = this.jobManager.requestNonceSpaceRefresh?.({
+      trigger: "duplicate-streak",
+      clientId: client.id,
+      worker: client.workerName,
+      duplicateShareStreak: client.duplicateShareStreak
+    });
+    if (refreshed) {
+      client.lastNonceSpaceRefreshAt = now;
+      client.duplicateShareStreak = 0;
+    }
+  }
+
+  canTriggerNonceSpaceRefresh(client, now) {
+    const cooldownMs = Math.max(1000, Number(this.config.nonceSpaceRefreshCooldownMs || 8000));
+    const lastAt = Math.max(0, Number(client.lastNonceSpaceRefreshAt || 0));
+    return (now - lastAt) >= cooldownMs;
+  }
+
   allocateExtranonce1() {
+    // Each connection gets a unique extranonce1 namespace, which prevents nonce-space
+    // overlap across active miners even if their local extranonce2/nonce strategies match.
     this.extranonceCounter += 1n;
     const bytes = this.config.extranonce1Size;
     let x = this.extranonceCounter;
