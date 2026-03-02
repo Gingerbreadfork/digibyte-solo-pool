@@ -73,31 +73,65 @@ class StatsPersistence {
   async start() {
     if (!this.enabled) return;
     try {
-      await fs.promises.mkdir(this.dir, { recursive: true });
-      await this.restoreFromDisk();
-      this.lastCompactSerialized = JSON.stringify(makeCompactStats(this.stats));
-
-      this.captureTimer = setInterval(() => this.captureNow(), this.captureIntervalMs);
-      this.flushTimer = setInterval(() => { this.scheduleFlush(); }, this.flushIntervalMs);
-      this.checkpointTimer = setInterval(() => { this.scheduleCheckpoint("interval"); }, this.checkpointIntervalMs);
-
-      if (typeof this.captureTimer.unref === "function") this.captureTimer.unref();
-      if (typeof this.flushTimer.unref === "function") this.flushTimer.unref();
-      if (typeof this.checkpointTimer.unref === "function") this.checkpointTimer.unref();
-
-      this.logger.info("Stats persistence enabled", {
-        dir: this.dir,
-        walCaptureMs: this.captureIntervalMs,
-        walFlushMs: this.flushIntervalMs,
-        checkpointMs: this.checkpointIntervalMs
-      });
+      await this.startAtCurrentDir();
     } catch (err) {
+      const canFallbackDir = isPermissionError(err);
+      if (canFallbackDir) {
+        const primaryDir = this.dir;
+        this.updatePaths("/tmp/digibyte-pool-data");
+        try {
+          await this.startAtCurrentDir();
+          this.logger.warn("Stats persistence directory fallback active", {
+            primaryDir,
+            fallbackDir: this.dir,
+            error: err && err.message ? err.message : String(err)
+          });
+          return;
+        } catch (fallbackErr) {
+          this.enabled = false;
+          this.logger.error("Stats persistence disabled after fallback init failure", {
+            primaryDir,
+            fallbackDir: this.dir,
+            error: fallbackErr && fallbackErr.message ? fallbackErr.message : String(fallbackErr)
+          });
+          return;
+        }
+      }
+
       this.enabled = false;
       this.logger.error("Stats persistence disabled after init failure", {
         dir: this.dir,
         error: err && err.message ? err.message : String(err)
       });
     }
+  }
+
+  async startAtCurrentDir() {
+    await fs.promises.mkdir(this.dir, { recursive: true });
+    await this.restoreFromDisk();
+    this.lastCompactSerialized = JSON.stringify(makeCompactStats(this.stats));
+
+    this.captureTimer = setInterval(() => this.captureNow(), this.captureIntervalMs);
+    this.flushTimer = setInterval(() => { this.scheduleFlush(); }, this.flushIntervalMs);
+    this.checkpointTimer = setInterval(() => { this.scheduleCheckpoint("interval"); }, this.checkpointIntervalMs);
+
+    if (typeof this.captureTimer.unref === "function") this.captureTimer.unref();
+    if (typeof this.flushTimer.unref === "function") this.flushTimer.unref();
+    if (typeof this.checkpointTimer.unref === "function") this.checkpointTimer.unref();
+
+    this.logger.info("Stats persistence enabled", {
+      dir: this.dir,
+      walCaptureMs: this.captureIntervalMs,
+      walFlushMs: this.flushIntervalMs,
+      checkpointMs: this.checkpointIntervalMs
+    });
+  }
+
+  updatePaths(baseDirPath) {
+    const baseDir = path.resolve(String(baseDirPath || "data"));
+    this.dir = path.join(baseDir, "stats");
+    this.snapshotPath = path.join(this.dir, SNAPSHOT_FILE);
+    this.walPath = path.join(this.dir, WAL_FILE);
   }
 
   async stop() {
@@ -306,6 +340,11 @@ function makeSnapshot(stats, recentSharesMax) {
       { recentShares: sanitizeRecentShares(stats && stats.recentShares, recentSharesMax) }
     )
   };
+}
+
+function isPermissionError(err) {
+  const code = err && err.code ? String(err.code) : "";
+  return code === "EACCES" || code === "EPERM";
 }
 
 function makeCompactStats(stats) {

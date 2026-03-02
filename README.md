@@ -49,7 +49,7 @@ High-priority goals for this build:
 
 - Raw TCP Stratum server (`mining.subscribe`, `authorize`, `notify`, `submit`)
 - `mining.configure` support for version-rolling (overt ASICBoost) negotiation
-- Per-miner version-rolling mask slicing with reject-streak auto-fallback to full mask
+- Per-miner version-rolling mask slicing with reject-streak auto-fallback to full mask and auto-disable when <2 compatible miners
 - Direct DigiByte JSON-RPC `getblocktemplate` + `submitblock`
 - Longpoll support for fast new-block propagation
 - Two-stage new-block propagation: fast near-empty template, then full template
@@ -390,7 +390,7 @@ EXTRANONCE1_SIZE=4                       # Extranonce1 size in bytes (2-16)
 EXTRANONCE2_SIZE=8                       # Extranonce2 size in bytes (2-16)
 VERSION_ROLLING_MASK=1fffe000           # Overt ASICBoost mask advertised via mining.configure
 VERSION_ROLLING_MIN_BIT_COUNT=1         # Minimum rolling bits requested from miners
-ENABLE_VERSION_MASK_SLICING=true        # Per-miner disjoint version-mask slices (set false to disable)
+ENABLE_VERSION_MASK_SLICING=true        # Per-miner disjoint version-mask slices (auto-active only with >=2 compatible miners)
 VERSION_MASK_SLICE_BITS_PER_MINER=2     # Target number of rolling bits per miner slice
 VERSION_MASK_SLICE_FALLBACK_REJECTS=8   # Auto-fallback to full mask after N reject streak
 ```
