@@ -144,10 +144,20 @@ class ApiServer {
     }
 
     if (url.pathname === "/healthz") {
-      const ok = Boolean(this.jobManager.currentJobSnapshot());
+      const now = Date.now();
+      const job = this.jobManager.currentJobSnapshot();
+      const connections = this.stratumServer.snapshot();
+      const checks = {
+        hasJob: Boolean(job),
+        nodeReachable: this.stats.templatePollFailureStreak === 0,
+        lastTemplateAgeSec: job ? Math.floor((now - job.createdAt) / 1000) : -1,
+        connectedMiners: Math.max(0, Number(connections.authorized) || 0),
+        lastShareAgeSec: this.stats.lastShareAt ? Math.floor((now - this.stats.lastShareAt) / 1000) : -1
+      };
+      const ok = checks.hasJob && checks.nodeReachable;
       return this.writeJson(res, ok ? 200 : 503, {
         ok,
-        hasJob: ok
+        checks
       });
     }
 

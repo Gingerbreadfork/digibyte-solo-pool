@@ -46,7 +46,7 @@ class JobManager extends EventEmitter {
     this.longpollPromise = null;
     this.lastLongpollSuccessAt = 0;
     this.prevhashEpochSeq = 0;
-    this.templatePollFailureStreak = 0;
+    this.templatePollFailureStreak = Math.max(0, Number(this.stats.templatePollFailureStreak || 0));
     this.lastTemplatePollFailureAt = 0;
     this.forceTemplateRefreshOnce = false;
     this.blockStatusTimer = null;
@@ -55,6 +55,7 @@ class JobManager extends EventEmitter {
     this.speculativePrebuildSeq = 0;
     this.lastNonceSpaceRefreshAt = 0;
     this.stats.recentBlocks = sanitizeRecentBlocksForRuntime(this.stats.recentBlocks);
+    this.stats.templatePollFailureStreak = this.templatePollFailureStreak;
   }
 
   async init() {
@@ -292,6 +293,7 @@ class JobManager extends EventEmitter {
   recordTemplateFetchFailure(source, err) {
     this.lastTemplatePollFailureAt = nowMs();
     this.templatePollFailureStreak += 1;
+    this.stats.templatePollFailureStreak = this.templatePollFailureStreak;
     // Force longpoll to renegotiate after outage/restart scenarios.
     this.longpollId = null;
 
@@ -308,6 +310,7 @@ class JobManager extends EventEmitter {
     if (this.templatePollFailureStreak <= 0) return;
     const recoveredAfter = this.templatePollFailureStreak;
     this.templatePollFailureStreak = 0;
+    this.stats.templatePollFailureStreak = this.templatePollFailureStreak;
     this.forceTemplateRefreshOnce = true;
     this.logger.info("Template poll RPC recovered", {
       source,

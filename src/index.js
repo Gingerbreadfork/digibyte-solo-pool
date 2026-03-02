@@ -37,6 +37,7 @@ async function main() {
     lastTemplateSource: null,
     lastTemplateFetchMs: 0,
     avgTemplateFetchMs: 0,
+    templatePollFailureStreak: 0,
     lastBroadcastAt: 0,
     lastBroadcastClients: 0,
     lastShareAt: 0,
