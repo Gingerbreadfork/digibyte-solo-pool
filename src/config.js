@@ -56,6 +56,9 @@ function loadConfig() {
     minerAuthToken: process.env.MINER_AUTH_TOKEN || "",
     versionRollingMaskHex: (process.env.VERSION_ROLLING_MASK || "1fffe000"),
     versionRollingMinBitCount: toInt(process.env.VERSION_ROLLING_MIN_BIT_COUNT, 1),
+    enableVersionMaskSlicing: toBool(process.env.ENABLE_VERSION_MASK_SLICING, true),
+    versionMaskSliceBitsPerMiner: toInt(process.env.VERSION_MASK_SLICE_BITS_PER_MINER, 2),
+    versionMaskSliceFallbackRejects: toInt(process.env.VERSION_MASK_SLICE_FALLBACK_REJECTS, 8),
 
     enableLongpoll: toBool(process.env.ENABLE_LONGPOLL, true),
     templatePollMs: toInt(process.env.TEMPLATE_POLL_MS, 1000),
@@ -107,8 +110,18 @@ function loadConfig() {
   if (cfg.versionRollingMaskHex.length !== 8) {
     throw new Error("VERSION_ROLLING_MASK must be a 4-byte hex mask");
   }
+  const versionRollingMaskBits = countSetBitsU32(Number.parseInt(cfg.versionRollingMaskHex, 16) >>> 0);
   if (cfg.versionRollingMinBitCount < 0 || cfg.versionRollingMinBitCount > 32) {
     throw new Error("VERSION_ROLLING_MIN_BIT_COUNT must be between 0 and 32");
+  }
+  if (cfg.versionRollingMinBitCount > versionRollingMaskBits) {
+    throw new Error("VERSION_ROLLING_MIN_BIT_COUNT cannot exceed set bits in VERSION_ROLLING_MASK");
+  }
+  if (cfg.versionMaskSliceBitsPerMiner < 1 || cfg.versionMaskSliceBitsPerMiner > 16) {
+    throw new Error("VERSION_MASK_SLICE_BITS_PER_MINER must be between 1 and 16");
+  }
+  if (cfg.versionMaskSliceFallbackRejects < 1 || cfg.versionMaskSliceFallbackRejects > 100) {
+    throw new Error("VERSION_MASK_SLICE_FALLBACK_REJECTS must be between 1 and 100");
   }
   if (cfg.nearCandidatePrewarmFactor < 2) {
     throw new Error("NEAR_CANDIDATE_PREWARM_FACTOR must be >= 2");
@@ -166,6 +179,16 @@ function loadConfig() {
   }
 
   return Object.freeze(cfg);
+}
+
+function countSetBitsU32(value) {
+  let v = value >>> 0;
+  let count = 0;
+  while (v) {
+    v &= (v - 1) >>> 0;
+    count += 1;
+  }
+  return count;
 }
 
 module.exports = { loadConfig };

@@ -201,7 +201,12 @@ class StratumServer extends EventEmitter {
       prevhashModeSwitches: 0,
       versionRollingEnabled: false,
       versionRollingMaskHex: "00000000",
+      versionRollingBaseMaskHex: "00000000",
       versionRollingMinBitCount: 0,
+      versionRollingSliceActive: false,
+      versionRollingSliceRejectStreak: 0,
+      versionRollingSliceDisabled: false,
+      versionRollingSliceBits: 0,
       lastAcceptedShareAt: 0,
       avgAcceptedShareIntervalMs: null,
       lastVarDiffRetargetAt: 0,
@@ -514,6 +519,7 @@ class StratumServer extends EventEmitter {
       this.logRejectedShare(client, share, jobId);
       this.maybeDownshiftDifficulty(client, share);
       this.maybeRotatePrevhashMode(client, share);
+      this.maybeFallbackVersionMaskSlicing(client, share);
       this.maybeRefreshNonceSpaceAfterReject(client, share);
       this.send(client, {
         id,
@@ -539,6 +545,7 @@ class StratumServer extends EventEmitter {
     client.acceptedShares += 1;
     client.lowDiffStreak = 0;
     client.duplicateShareStreak = 0;
+    client.versionRollingSliceRejectStreak = 0;
     this.recordShareSample("accepted", share, client);
     this.recordAcceptedShareTiming(client, acceptedAt);
     this.logAcceptedShare(client, share);
@@ -713,11 +720,17 @@ class StratumServer extends EventEmitter {
         options["version-rolling.mask"],
         this.config.versionRollingMaskHex
       );
-      client.versionRollingMaskHex = negotiatedMaskHex;
+      const maskResolution = this.resolveVersionRollingMaskForClient(client, negotiatedMaskHex);
+      client.versionRollingMaskHex = maskResolution.maskHex;
+      client.versionRollingBaseMaskHex = negotiatedMaskHex;
       client.versionRollingMinBitCount = Math.max(0, Number(this.config.versionRollingMinBitCount || 0));
-      client.versionRollingEnabled = negotiatedMaskHex !== "00000000";
+      client.versionRollingEnabled = maskResolution.maskHex !== "00000000";
+      client.versionRollingSliceActive = Boolean(maskResolution.sliceActive);
+      client.versionRollingSliceBits = Number(maskResolution.sliceBits || 0);
+      client.versionRollingSliceRejectStreak = 0;
+      client.versionRollingSliceDisabled = Boolean(maskResolution.sliceDisabled);
       result["version-rolling"] = client.versionRollingEnabled;
-      result["version-rolling.mask"] = negotiatedMaskHex;
+      result["version-rolling.mask"] = client.versionRollingMaskHex;
       result["version-rolling.min-bit-count"] = client.versionRollingMinBitCount;
 
       this.logger.info("Negotiated version rolling", {
@@ -725,9 +738,25 @@ class StratumServer extends EventEmitter {
         remote: client.remote,
         worker: client.workerName,
         enabled: client.versionRollingEnabled,
-        mask: negotiatedMaskHex,
-        minBitCount: client.versionRollingMinBitCount
+        requestedMask: options["version-rolling.mask"] ? String(options["version-rolling.mask"]) : "ffffffff",
+        baseMask: negotiatedMaskHex,
+        effectiveMask: client.versionRollingMaskHex,
+        minBitCount: client.versionRollingMinBitCount,
+        sliced: client.versionRollingSliceActive,
+        sliceBits: client.versionRollingSliceBits,
+        slicingEnabled: Boolean(this.config.enableVersionMaskSlicing)
       });
+
+      if (this.config.enableVersionMaskSlicing && !maskResolution.sliceActive && maskResolution.reason) {
+        this.logger.warn("Version mask slicing fallback", {
+          clientId: client.id,
+          remote: client.remote,
+          worker: client.workerName,
+          reason: maskResolution.reason,
+          baseMask: negotiatedMaskHex,
+          effectiveMask: client.versionRollingMaskHex
+        });
+      }
     }
 
     this.send(client, { id, result, error: null });
@@ -758,6 +787,112 @@ class StratumServer extends EventEmitter {
       versionRollingMask: client.versionRollingMaskHex,
       extraParamCount: params.length - 5,
       extraParams: params.slice(5).map((v) => String(v))
+    });
+  }
+
+  resolveVersionRollingMaskForClient(client, baseMaskHex) {
+    const normalizedBase = normalizeHex(String(baseMaskHex || "00000000")).padStart(8, "0");
+    if (!this.config.enableVersionMaskSlicing) {
+      return { maskHex: normalizedBase, sliceActive: false, sliceBits: 0, sliceDisabled: false, reason: "feature-disabled" };
+    }
+    if (client.versionRollingSliceDisabled) {
+      return { maskHex: normalizedBase, sliceActive: false, sliceBits: 0, sliceDisabled: true, reason: "client-slicing-disabled" };
+    }
+    const baseMask = parseHexU32(normalizedBase);
+    if (!baseMask) {
+      return { maskHex: normalizedBase, sliceActive: false, sliceBits: 0, sliceDisabled: false, reason: "empty-base-mask" };
+    }
+
+    const targetBits = Math.max(
+      1,
+      Number(this.config.versionMaskSliceBitsPerMiner || 2),
+      Number(this.config.versionRollingMinBitCount || 0)
+    );
+    const assignedMask = this.allocateVersionRollingSliceMask(client, baseMask, targetBits);
+    if (!assignedMask) {
+      return { maskHex: normalizedBase, sliceActive: false, sliceBits: 0, sliceDisabled: false, reason: "insufficient-free-bits" };
+    }
+
+    return {
+      maskHex: toFixedHexU32(assignedMask),
+      sliceActive: true,
+      sliceBits: countSetBitsU32(assignedMask),
+      sliceDisabled: false,
+      reason: null
+    };
+  }
+
+  allocateVersionRollingSliceMask(client, baseMask, targetBits) {
+    const usedBitsMask = this.collectActiveVersionSliceBitsMask(client.id);
+    const freeBitsMask = (baseMask & (~usedBitsMask >>> 0)) >>> 0;
+    if (freeBitsMask === 0) return 0;
+
+    const selected = pickLowestMaskBits(freeBitsMask, targetBits);
+    if (countSetBitsU32(selected) < targetBits) return 0;
+    return selected >>> 0;
+  }
+
+  collectActiveVersionSliceBitsMask(excludeClientId) {
+    let used = 0;
+    for (const c of this.clients.values()) {
+      if (excludeClientId && c.id === excludeClientId) continue;
+      if (!c.versionRollingSliceActive) continue;
+      const mask = parseHexU32(c.versionRollingMaskHex || "00000000");
+      if (mask) {
+        used = (used | mask) >>> 0;
+      }
+    }
+    return used >>> 0;
+  }
+
+  maybeFallbackVersionMaskSlicing(client, share) {
+    if (!client.versionRollingSliceActive) return;
+    if (!share || !share.code) return;
+    if (!["lowdiff", "invalid", "stale"].includes(share.code)) return;
+
+    client.versionRollingSliceRejectStreak = Math.max(0, Number(client.versionRollingSliceRejectStreak || 0)) + 1;
+    const threshold = Math.max(1, Number(this.config.versionMaskSliceFallbackRejects || 8));
+    if (client.versionRollingSliceRejectStreak < threshold) return;
+
+    this.fallbackVersionMaskSlicing(client, `reject-streak:${share.code}:${client.versionRollingSliceRejectStreak}`);
+  }
+
+  fallbackVersionMaskSlicing(client, reason) {
+    if (!client.versionRollingSliceActive) return;
+
+    const baseMaskHex = normalizeHex(String(client.versionRollingBaseMaskHex || "00000000")).padStart(8, "0");
+    const previousMaskHex = normalizeHex(String(client.versionRollingMaskHex || "00000000")).padStart(8, "0");
+    client.versionRollingSliceActive = false;
+    client.versionRollingSliceDisabled = true;
+    client.versionRollingSliceBits = 0;
+    client.versionRollingSliceRejectStreak = 0;
+    client.versionRollingMaskHex = baseMaskHex;
+    client.versionRollingEnabled = baseMaskHex !== "00000000";
+
+    this.logger.warn("Falling back from sliced version mask", {
+      clientId: client.id,
+      remote: client.remote,
+      worker: client.workerName,
+      reason,
+      previousMask: previousMaskHex,
+      fallbackMask: baseMaskHex
+    });
+
+    this.withCork(client, () => {
+      this.pushVersionMask(client, baseMaskHex);
+      const job = this.jobManager.currentJobSnapshot();
+      if (job) {
+        this.pushJob(client, job, { cleanJobs: true });
+      }
+    });
+  }
+
+  pushVersionMask(client, maskHex) {
+    if (!client.subscribed) return;
+    this.send(client, {
+      id: null,
+      method: "mining.set_version_mask",
+      params: [normalizeHex(String(maskHex || "00000000")).padStart(8, "0")]
     });
   }
 
@@ -1094,6 +1229,29 @@ function negotiateVersionRollingMask(requestedMaskValue, serverMaskHex) {
     return "00000000";
   }
   return toFixedHexU32((requestedMask & serverMask) >>> 0);
+}
+
+function pickLowestMaskBits(mask, bitCount) {
+  const target = Math.max(1, Number(bitCount || 1));
+  let selected = 0;
+  let remaining = mask >>> 0;
+  for (let i = 0; i < target; i += 1) {
+    if (remaining === 0) break;
+    const lsb = (remaining & (-remaining >>> 0)) >>> 0;
+    selected = (selected | lsb) >>> 0;
+    remaining = (remaining & (~lsb >>> 0)) >>> 0;
+  }
+  return selected >>> 0;
+}
+
+function countSetBitsU32(value) {
+  let v = value >>> 0;
+  let count = 0;
+  while (v) {
+    v &= (v - 1) >>> 0;
+    count += 1;
+  }
+  return count;
 }
 
 function parseHexU32(value) {

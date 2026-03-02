@@ -14,6 +14,7 @@ High-priority goals for this build:
 | Feature | Status |
 |---------|--------|
 | **Stratum V1 Protocol** | ✅ Full implementation with version rolling |
+| **Version-Mask Slicing** | ✅ Per-miner disjoint ASICBoost mask assignment with auto-fallback |
 | **SHA256d Mining** | ✅ Native validation, other algos planned |
 | **Variable Difficulty** | ✅ Per-miner automatic retargeting |
 | **Longpoll** | ✅ Instant new block notifications |
@@ -48,6 +49,7 @@ High-priority goals for this build:
 
 - Raw TCP Stratum server (`mining.subscribe`, `authorize`, `notify`, `submit`)
 - `mining.configure` support for version-rolling (overt ASICBoost) negotiation
+- Per-miner version-rolling mask slicing with reject-streak auto-fallback to full mask
 - Direct DigiByte JSON-RPC `getblocktemplate` + `submitblock`
 - Longpoll support for fast new-block propagation
 - Two-stage new-block propagation: fast near-empty template, then full template
@@ -388,6 +390,9 @@ EXTRANONCE1_SIZE=4                       # Extranonce1 size in bytes (2-16)
 EXTRANONCE2_SIZE=8                       # Extranonce2 size in bytes (2-16)
 VERSION_ROLLING_MASK=1fffe000           # Overt ASICBoost mask advertised via mining.configure
 VERSION_ROLLING_MIN_BIT_COUNT=1         # Minimum rolling bits requested from miners
+ENABLE_VERSION_MASK_SLICING=true        # Per-miner disjoint version-mask slices (set false to disable)
+VERSION_MASK_SLICE_BITS_PER_MINER=2     # Target number of rolling bits per miner slice
+VERSION_MASK_SLICE_FALLBACK_REJECTS=8   # Auto-fallback to full mask after N reject streak
 ```
 
 ### Pool Configuration
