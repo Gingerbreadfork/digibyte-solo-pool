@@ -411,6 +411,7 @@ class ApiServer {
     this.stats.lastBroadcastAt = 0;
     this.stats.lastShareAt = 0;
     this.stats.lastShareWorker = null;
+    this.stats.lastShareHash = null;
     this.stats.recentShares = [];
 
     // Restore all-time bests

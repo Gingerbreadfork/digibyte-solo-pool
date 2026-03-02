@@ -741,6 +741,21 @@ function renderDashboardHtml() {
       overflow: hidden;
     }
 
+    .entropy-wrap {
+      height: clamp(190px, 22vw, 280px);
+      background:
+        radial-gradient(120% 90% at 50% 30%, rgba(116, 191, 255, 0.09), transparent 60%),
+        rgba(5, 7, 10, 0.95);
+      border-color: rgba(116, 191, 255, 0.2);
+    }
+
+    [data-theme="light"] .entropy-wrap {
+      background:
+        radial-gradient(120% 90% at 50% 30%, rgba(52, 118, 219, 0.12), transparent 60%),
+        rgba(248, 242, 232, 0.96);
+      border-color: rgba(59, 106, 181, 0.2);
+    }
+
     [data-theme="light"] .chart-wrap {
       background:
         linear-gradient(rgba(65, 88, 122, 0.08) 1px, transparent 1px) 0 0 / 100% 25%,
@@ -2091,6 +2106,17 @@ function renderDashboardHtml() {
     </section>
 
     <section class="grid reveal">
+      <article class="card chart-card span-12">
+        <div class="chart-head">
+          <div class="title">Entropy Lava Lamp</div>
+          <div id="entropy-meta" class="meta">waiting for share hashes</div>
+        </div>
+        <div class="chart-wrap entropy-wrap"><canvas id="entropy-canvas" aria-label="Entropy lava lamp driven by share hashes"></canvas></div>
+        <div id="entropy-hint" class="hint">Cryptographic entropy visualized from live share hashes</div>
+      </article>
+    </section>
+
+    <section class="grid reveal">
       <article class="card chart-card span-6">
         <div class="chart-head">
           <div class="title">Recent Share Activity</div>
@@ -2278,7 +2304,10 @@ function renderDashboardHtml() {
       heroSignalMeta: d.getElementById("hero-signal-meta"),
       heroDiffRange: d.getElementById("hero-diff-range"),
       heroDiffWrap: d.getElementById("hero-diff-wrap"),
-      heroDiffTooltip: d.getElementById("hero-diff-tooltip")
+      heroDiffTooltip: d.getElementById("hero-diff-tooltip"),
+      entropyCanvas: d.getElementById("entropy-canvas"),
+      entropyMeta: d.getElementById("entropy-meta"),
+      entropyHint: d.getElementById("entropy-hint")
     };
 
     const charts = {
@@ -2305,6 +2334,7 @@ function renderDashboardHtml() {
     charts.heroDiff.hoverIndex = -1;
     charts.heroDiff.lastSamples = [];
     setupHeroDiffInteractions();
+    const entropyLamp = createEntropyLamp(refs.entropyCanvas);
 
     let renderQueued = false;
     let latestModel = null;
@@ -2442,6 +2472,221 @@ function renderDashboardHtml() {
       state.resize = resize;
       state.ro = ro;
       return state;
+    }
+
+    function createEntropyLamp(canvas) {
+      if (!canvas) return null;
+
+      const ctx = canvas.getContext("2d", { alpha: false, desynchronized: true });
+      if (!ctx) return null;
+      const offscreen = document.createElement("canvas");
+      const offCtx = offscreen.getContext("2d", { alpha: false });
+      if (!offCtx) return null;
+
+      const state = {
+        canvas,
+        ctx,
+        offscreen,
+        offCtx,
+        gridW: 96,
+        gridH: 56,
+        field: null,
+        imageData: null,
+        phase: 0,
+        lastTs: performance.now(),
+        seedCount: 0,
+        lastSeedAt: 0,
+        processedKeys: new Set(),
+        processedOrder: [],
+        rafId: 0
+      };
+      state.field = new Float32Array(state.gridW * state.gridH * 3);
+      offscreen.width = state.gridW;
+      offscreen.height = state.gridH;
+      state.imageData = offCtx.createImageData(state.gridW, state.gridH);
+
+      for (let i = 0; i < state.gridW * state.gridH; i += 1) {
+        const off = i * 3;
+        const base = 10 + (Math.random() * 8);
+        state.field[off] = base;
+        state.field[off + 1] = base * 1.2;
+        state.field[off + 2] = base * 1.5;
+      }
+
+      const resize = () => {
+        const rect = canvas.getBoundingClientRect();
+        const dpr = Math.min(2, window.devicePixelRatio || 1);
+        const width = Math.max(1, Math.floor(rect.width * dpr));
+        const height = Math.max(1, Math.floor(rect.height * dpr));
+        if (canvas.width === width && canvas.height === height) return;
+        canvas.width = width;
+        canvas.height = height;
+      };
+      resize();
+      if (window.ResizeObserver) {
+        const ro = new ResizeObserver(resize);
+        ro.observe(canvas);
+      } else {
+        window.addEventListener("resize", resize, { passive: true });
+      }
+
+      const tick = (ts) => {
+        advanceEntropyLamp(state, ts);
+        drawEntropyLamp(state);
+        state.rafId = requestAnimationFrame(tick);
+      };
+      state.rafId = requestAnimationFrame(tick);
+      return state;
+    }
+
+    function advanceEntropyLamp(state, ts) {
+      if (!state || !state.field) return;
+      const dt = Math.max(8, Math.min(64, ts - state.lastTs));
+      state.lastTs = ts;
+      state.phase += dt * 0.0007;
+
+      const w = state.gridW;
+      const h = state.gridH;
+      const cells = w * h;
+      const field = state.field;
+      const phase = state.phase;
+      for (let i = 0; i < cells; i += 1) {
+        const x = i % w;
+        const y = (i / w) | 0;
+        const waveA = Math.sin((x * 0.17) + phase);
+        const waveB = Math.cos((y * 0.13) - (phase * 1.2));
+        const waveC = Math.sin(((x + y) * 0.08) + (phase * 0.7));
+        const drift = (waveA + waveB + waveC) * 0.45;
+        const off = i * 3;
+        field[off] = clamp255((field[off] * 0.994) + (drift * 1.3));
+        field[off + 1] = clamp255((field[off + 1] * 0.994) + (drift * 1.15));
+        field[off + 2] = clamp255((field[off + 2] * 0.994) + (drift * 1.55));
+      }
+
+      const stirCount = Math.max(24, Math.floor((state.seedCount > 0 ? 120 : 40) * (dt / 16)));
+      for (let i = 0; i < stirCount; i += 1) {
+        const idx = (Math.random() * cells) | 0;
+        const right = (idx % w === (w - 1)) ? (idx - (w - 1)) : (idx + 1);
+        const down = (idx >= cells - w) ? (idx % w) : (idx + w);
+        const a = idx * 3;
+        const b = right * 3;
+        const c = down * 3;
+        field[a] = clamp255((field[a] * 0.5) + (field[b] * 0.25) + (field[c] * 0.25));
+        field[a + 1] = clamp255((field[a + 1] * 0.5) + (field[b + 1] * 0.25) + (field[c + 1] * 0.25));
+        field[a + 2] = clamp255((field[a + 2] * 0.5) + (field[b + 2] * 0.25) + (field[c + 2] * 0.25));
+      }
+    }
+
+    function drawEntropyLamp(state) {
+      if (!state || !state.imageData || !state.field) return;
+      const { imageData, field, offCtx, ctx, offscreen, canvas } = state;
+      const pixels = imageData.data;
+      const cells = state.gridW * state.gridH;
+      for (let i = 0; i < cells; i += 1) {
+        const src = i * 3;
+        const dst = i * 4;
+        pixels[dst] = clamp255(field[src]);
+        pixels[dst + 1] = clamp255(field[src + 1]);
+        pixels[dst + 2] = clamp255(field[src + 2]);
+        pixels[dst + 3] = 255;
+      }
+      offCtx.putImageData(imageData, 0, 0);
+      ctx.imageSmoothingEnabled = true;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(offscreen, 0, 0, canvas.width, canvas.height);
+    }
+
+    function updateEntropyLampFromSamples(samples, poolHashrate) {
+      if (!entropyLamp) return;
+      const list = Array.isArray(samples) ? samples.slice(-180) : [];
+      let seededThisTick = 0;
+      for (let i = 0; i < list.length; i += 1) {
+        const s = list[i] || {};
+        const hashHex = String(s.hash || "").trim();
+        if (!hashHex) continue;
+        const t = Math.max(0, Math.floor(safeNum(s.t, 0)));
+        const key = t + ":" + hashHex;
+        if (entropyLamp.processedKeys.has(key)) continue;
+        entropyLamp.processedKeys.add(key);
+        entropyLamp.processedOrder.push(key);
+        if (entropyLamp.processedOrder.length > 2500) {
+          const drop = entropyLamp.processedOrder.shift();
+          entropyLamp.processedKeys.delete(drop);
+        }
+        seedEntropyLampFromHash(entropyLamp, hashHex);
+        entropyLamp.seedCount += 1;
+        entropyLamp.lastSeedAt = Date.now();
+        seededThisTick += 1;
+      }
+
+      if (entropyLamp.seedCount > 0) {
+        text(
+          refs.entropyMeta,
+          "seeded " + fmtInt(entropyLamp.seedCount) + " shares" + (seededThisTick > 0 ? " • +" + fmtInt(seededThisTick) : "")
+        );
+        const churn = poolHashrate > 0 ? fmtHashrate(poolHashrate) : "warming up";
+        text(refs.entropyHint, "Last seed " + fmtTsAge(entropyLamp.lastSeedAt) + " ago • churn follows share rate (" + churn + ")");
+      } else {
+        text(refs.entropyMeta, "waiting for share hashes");
+        text(refs.entropyHint, "Cryptographic entropy visualized from live share hashes");
+      }
+    }
+
+    function seedEntropyLampFromHash(state, hashHex) {
+      const bytes = hexToBytes(hashHex);
+      if (!bytes.length) return;
+      const w = state.gridW;
+      const h = state.gridH;
+      const cells = w * h;
+      for (let i = 0; i < bytes.length; i += 1) {
+        const b0 = bytes[i];
+        const b1 = bytes[(i + 7) % bytes.length];
+        const b2 = bytes[(i + 13) % bytes.length];
+        const idx = (((b0 << 8) | b1) + (i * 97)) % cells;
+        const r = (b0 * 5 + b2 * 2) & 255;
+        const g = (b1 * 7 + b0 * 3) & 255;
+        const b = (b2 * 11 + b1) & 255;
+        blendEntropyCell(state, idx, r, g, b, 0.62);
+
+        const x = idx % w;
+        const y = (idx / w) | 0;
+        const neighbors = [
+          (((x + 1) % w) + y * w),
+          (((x + w - 1) % w) + y * w),
+          (x + (((y + 1) % h) * w)),
+          (x + (((y + h - 1) % h) * w))
+        ];
+        for (let n = 0; n < neighbors.length; n += 1) {
+          blendEntropyCell(state, neighbors[n], r, g, b, 0.24);
+        }
+      }
+    }
+
+    function blendEntropyCell(state, idx, r, g, b, alpha) {
+      const off = idx * 3;
+      const a = Math.max(0, Math.min(1, safeNum(alpha, 0.5)));
+      state.field[off] = clamp255((state.field[off] * (1 - a)) + (r * a));
+      state.field[off + 1] = clamp255((state.field[off + 1] * (1 - a)) + (g * a));
+      state.field[off + 2] = clamp255((state.field[off + 2] * (1 - a)) + (b * a));
+    }
+
+    function hexToBytes(hex) {
+      const clean = String(hex || "").trim().toLowerCase().replace(/[^0-9a-f]/g, "");
+      if (!clean || clean.length < 2) return [];
+      const padded = clean.length % 2 === 0 ? clean : ("0" + clean);
+      const out = new Array(padded.length / 2);
+      for (let i = 0; i < out.length; i += 1) {
+        out[i] = parseInt(padded.slice(i * 2, (i * 2) + 2), 16) & 255;
+      }
+      return out;
+    }
+
+    function clamp255(value) {
+      const n = Number(value);
+      if (!Number.isFinite(n)) return 0;
+      if (n <= 0) return 0;
+      if (n >= 255) return 255;
+      return n;
     }
 
     function drawDualChart(chart, seriesA, seriesB) {
@@ -3429,6 +3674,7 @@ function renderDashboardHtml() {
 
       const shareA = ringToArray(history.sharesAcceptedDelta);
       const shareB = ringToArray(history.sharesRejectedDelta);
+      updateEntropyLampFromSamples(Array.isArray(s.recentShares) ? s.recentShares : [], d0.poolHashrate);
       renderHeroDifficulty(Array.isArray(s.recentShares) ? s.recentShares : []);
       drawDualChart(charts.shares, shareA, shareB);
       text(refs.sharesChartMeta, "acc " + fmtInt(d0.acceptedDelta) + " / rej " + fmtInt(d0.rejectedDelta) + " this tick");

@@ -46,6 +46,7 @@ const STRING_OR_NULL_FIELDS = [
   "currentNetworkBits",
   "lastTemplateSource",
   "lastShareWorker",
+  "lastShareHash",
   "lastFoundBlockHash",
   "bestShareWorker",
   "bestLeadingZerosHash",
@@ -429,7 +430,8 @@ function sanitizeRecentShares(input, maxItems) {
       type: sample.type === "rejected" ? "rejected" : "accepted",
       difficulty: sanitizeNumber(sample.difficulty),
       worker: sanitizeString(sample.worker, 96),
-      reason: sample.reason == null ? null : sanitizeString(sample.reason, 64)
+      reason: sample.reason == null ? null : sanitizeString(sample.reason, 64),
+      hash: sanitizeString(sample.hash || "", 128)
     });
   }
 

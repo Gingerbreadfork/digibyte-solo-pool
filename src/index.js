@@ -55,6 +55,7 @@ async function main() {
     lastBroadcastClients: 0,
     lastShareAt: 0,
     lastShareWorker: null,
+    lastShareHash: null,
     lastFoundBlockHash: null,
     lastFoundBlockAt: 0,
     bestShareDifficulty: 0,

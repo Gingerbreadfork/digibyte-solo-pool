@@ -544,6 +544,9 @@ class StratumServer extends EventEmitter {
       }
       this.recordRejectedShare(share.code);
       this.recordShareSample("rejected", share, client);
+      if (share.shareHashHex) {
+        this.stats.lastShareHash = sanitizeShareHash(share.shareHashHex);
+      }
       this.updateLeadingZerosScoreboard(client, share, nowMs());
       this.logRejectedShare(client, share, jobId);
       this.maybeDownshiftDifficulty(client, share);
@@ -563,6 +566,9 @@ class StratumServer extends EventEmitter {
     this.stats.sharesAccepted += 1;
     this.stats.lastShareAt = acceptedAt;
     this.stats.lastShareWorker = client.workerName;
+    if (share.shareHashHex) {
+      this.stats.lastShareHash = sanitizeShareHash(share.shareHashHex);
+    }
 
     // Track best share difficulty
     const shareDiff = Number(share.shareDifficulty || 0);
@@ -660,7 +666,8 @@ class StratumServer extends EventEmitter {
       type: type === "rejected" ? "rejected" : "accepted",
       difficulty: Number.isFinite(difficulty) && difficulty > 0 ? difficulty : 0,
       worker: client && client.workerName ? client.workerName : "",
-      reason: share && share.code ? String(share.code) : null
+      reason: share && share.code ? String(share.code) : null,
+      hash: sanitizeShareHash(share && share.shareHashHex ? share.shareHashHex : "")
     });
 
     const overflow = this.stats.recentShares.length - MAX_RECENT_SHARE_SAMPLES;
