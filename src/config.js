@@ -65,6 +65,17 @@ function loadConfig() {
     ),
     versionMaskSliceBitsPerMiner: toInt(process.env.VERSION_MASK_SLICE_BITS_PER_MINER, 2),
     versionMaskSliceFallbackRejects: toInt(process.env.VERSION_MASK_SLICE_FALLBACK_REJECTS, 8),
+    enableEspMinerNotifyCoalescing: toBool(process.env.ENABLE_ESP_MINER_NOTIFY_COALESCING, true),
+    espMinerNotifyNoncleanMinIntervalMs: toInt(process.env.ESP_MINER_NOTIFY_NONCLEAN_MIN_INTERVAL_MS, 3000),
+    espMinerNotifyForceIntervalMs: toInt(process.env.ESP_MINER_NOTIFY_FORCE_INTERVAL_MS, 15000),
+    enableAdaptiveNotifyPacing: toBool(process.env.ENABLE_ADAPTIVE_NOTIFY_PACING, true),
+    adaptiveNotifyBaseIntervalMs: toInt(process.env.ADAPTIVE_NOTIFY_BASE_INTERVAL_MS, 400),
+    adaptiveNotifyTargetShareMs: toInt(process.env.ADAPTIVE_NOTIFY_TARGET_SHARE_MS, 2000),
+    adaptiveNotifyMaxIntervalMs: toInt(process.env.ADAPTIVE_NOTIFY_MAX_INTERVAL_MS, 5000),
+    adaptiveNotifyHighAckMs: toInt(process.env.ADAPTIVE_NOTIFY_HIGH_ACK_MS, 200),
+    adaptiveNotifyHighRejectRatioPct: toFloat(process.env.ADAPTIVE_NOTIFY_HIGH_REJECT_RATIO_PCT, 5),
+    enableSetExtranonceOrchestration: toBool(process.env.ENABLE_SET_EXTRANONCE_ORCHESTRATION, true),
+    setExtranonceRotateCooldownMs: toInt(process.env.SET_EXTRANONCE_ROTATE_COOLDOWN_MS, 10000),
 
     enableLongpoll: toBool(process.env.ENABLE_LONGPOLL, true),
     templatePollMs: toInt(process.env.TEMPLATE_POLL_MS, 1000),
@@ -128,6 +139,34 @@ function loadConfig() {
   }
   if (cfg.versionMaskSliceFallbackRejects < 1 || cfg.versionMaskSliceFallbackRejects > 100) {
     throw new Error("VERSION_MASK_SLICE_FALLBACK_REJECTS must be between 1 and 100");
+  }
+  if (cfg.espMinerNotifyNoncleanMinIntervalMs < 0) {
+    throw new Error("ESP_MINER_NOTIFY_NONCLEAN_MIN_INTERVAL_MS must be >= 0");
+  }
+  if (cfg.espMinerNotifyForceIntervalMs < 1000) {
+    throw new Error("ESP_MINER_NOTIFY_FORCE_INTERVAL_MS must be >= 1000");
+  }
+  if (cfg.adaptiveNotifyBaseIntervalMs < 0) {
+    throw new Error("ADAPTIVE_NOTIFY_BASE_INTERVAL_MS must be >= 0");
+  }
+  if (cfg.adaptiveNotifyTargetShareMs < 250) {
+    throw new Error("ADAPTIVE_NOTIFY_TARGET_SHARE_MS must be >= 250");
+  }
+  if (cfg.adaptiveNotifyMaxIntervalMs < 250) {
+    throw new Error("ADAPTIVE_NOTIFY_MAX_INTERVAL_MS must be >= 250");
+  }
+  if (cfg.adaptiveNotifyHighAckMs < 1) {
+    throw new Error("ADAPTIVE_NOTIFY_HIGH_ACK_MS must be >= 1");
+  }
+  if (
+    !Number.isFinite(cfg.adaptiveNotifyHighRejectRatioPct)
+    || cfg.adaptiveNotifyHighRejectRatioPct < 0
+    || cfg.adaptiveNotifyHighRejectRatioPct > 100
+  ) {
+    throw new Error("ADAPTIVE_NOTIFY_HIGH_REJECT_RATIO_PCT must be between 0 and 100");
+  }
+  if (cfg.setExtranonceRotateCooldownMs < 1000) {
+    throw new Error("SET_EXTRANONCE_ROTATE_COOLDOWN_MS must be >= 1000");
   }
   if (cfg.nearCandidatePrewarmFactor < 2) {
     throw new Error("NEAR_CANDIDATE_PREWARM_FACTOR must be >= 2");

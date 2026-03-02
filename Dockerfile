@@ -10,6 +10,9 @@ WORKDIR /app
 COPY --chown=pooluser:pooluser package.json ./
 COPY --chown=pooluser:pooluser src ./src
 
+# Ensure runtime-writable app directory (for stats persistence under /app/data).
+RUN chown -R pooluser:pooluser /app
+
 # Switch to non-root user
 USER pooluser
 

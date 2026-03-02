@@ -15,6 +15,9 @@ High-priority goals for this build:
 |---------|--------|
 | **Stratum V1 Protocol** | ✅ Full implementation with version rolling |
 | **Version-Mask Slicing** | ✅ Per-miner disjoint ASICBoost mask assignment with auto-fallback |
+| **ESP-Miner Notify Coalescing** | ✅ Adaptive non-clean notify pacing to reduce queue churn |
+| **`set_extranonce` Orchestration** | ✅ Extranonce namespace rotation before template churn (when supported) |
+| **Two-Stage New-Block Fastpath** | ✅ Near-empty first notify, then full template follow-up |
 | **SHA256d Mining** | ✅ Native validation, other algos planned |
 | **Variable Difficulty** | ✅ Per-miner automatic retargeting |
 | **Longpoll** | ✅ Instant new block notifications |
@@ -50,6 +53,8 @@ High-priority goals for this build:
 - Raw TCP Stratum server (`mining.subscribe`, `authorize`, `notify`, `submit`)
 - `mining.configure` support for version-rolling (overt ASICBoost) negotiation
 - Per-miner version-rolling mask slicing with reject-streak auto-fallback to full mask and auto-disable when <2 compatible miners
+- ESP-Miner-aware non-clean notify coalescing with adaptive pacing based on latency/reject signals
+- Extranonce namespace orchestration via `mining.set_extranonce` (when miner subscribed)
 - Direct DigiByte JSON-RPC `getblocktemplate` + `submitblock`
 - Longpoll support for fast new-block propagation
 - Two-stage new-block propagation: fast near-empty template, then full template
@@ -394,6 +399,17 @@ ENABLE_VERSION_MASK_SLICING=true        # Per-miner disjoint version-mask slices
 DISABLE_SLICING_FOR_NERDAXE=true        # Compatibility profile: keep NerdAxe/NerdOctaxe on full mask
 VERSION_MASK_SLICE_BITS_PER_MINER=2     # Target number of rolling bits per miner slice
 VERSION_MASK_SLICE_FALLBACK_REJECTS=8   # Auto-fallback to full mask after N reject streak
+ENABLE_ESP_MINER_NOTIFY_COALESCING=true # Coalesce non-clean notifies for ESP-Miner class clients
+ESP_MINER_NOTIFY_NONCLEAN_MIN_INTERVAL_MS=3000 # Minimum spacing for non-clean notify to ESP lane
+ESP_MINER_NOTIFY_FORCE_INTERVAL_MS=15000 # Force a non-clean refresh if coalescing held too long
+ENABLE_ADAPTIVE_NOTIFY_PACING=true      # RTT/reject/share-rate driven non-clean notify pacing
+ADAPTIVE_NOTIFY_BASE_INTERVAL_MS=400    # Baseline non-clean notify spacing
+ADAPTIVE_NOTIFY_TARGET_SHARE_MS=2000    # Faster shares than this increase pacing interval
+ADAPTIVE_NOTIFY_MAX_INTERVAL_MS=5000    # Cap on adaptive non-clean pacing
+ADAPTIVE_NOTIFY_HIGH_ACK_MS=200         # Submit ack latency threshold for pacing backoff
+ADAPTIVE_NOTIFY_HIGH_REJECT_RATIO_PCT=5 # Reject-rate threshold for pacing backoff
+ENABLE_SET_EXTRANONCE_ORCHESTRATION=true # Rotate extranonce namespace (if supported) before template churn
+SET_EXTRANONCE_ROTATE_COOLDOWN_MS=10000 # Min ms between set_extranonce rotations per miner
 ```
 
 ### Pool Configuration
@@ -484,6 +500,12 @@ STATS_RECENT_SHARES_MAX=240              # Max recent share samples retained in 
 - Ensure miners are actually hashing (check dashboard for shares)
 - This is solo mining - blocks are rare! Expected time: `network_difficulty / your_hashrate / 600` seconds
 - Check `pool_blocks_rejected_total` metric - if >0, investigate node logs
+
+### "Stats persistence disabled after init failure" (`EACCES: /app/data`)
+
+- The Docker image now sets writable ownership on `/app`, so new deployments should not hit this.
+- For existing deployments, rebuild/redeploy the image so the updated Dockerfile takes effect.
+- Optional: set `STATS_PERSISTENCE_DIR` to a known writable path and mount it as a persistent volume.
 
 ### High API latency
 

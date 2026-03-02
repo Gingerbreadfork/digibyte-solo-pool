@@ -208,11 +208,19 @@ class StratumServer extends EventEmitter {
       versionRollingSliceRejectStreak: 0,
       versionRollingSliceDisabled: false,
       versionRollingSliceBits: 0,
+      extranonceSubscribed: false,
       lastAcceptedShareAt: 0,
       avgAcceptedShareIntervalMs: null,
       lastVarDiffRetargetAt: 0,
       duplicateShareStreak: 0,
-      lastNonceSpaceRefreshAt: 0
+      lastNonceSpaceRefreshAt: 0,
+      lastJobNotifyAt: 0,
+      lastNonCleanJobNotifyAt: 0,
+      jobNotifySkipCount: 0,
+      lastExtranonceRotateAt: 0,
+      extranonceRotateCount: 0,
+      submitAckEmaMs: 0,
+      submitRejectRateEma: 0
     };
     client.extranonce1Raw = Buffer.from(client.extranonce1Hex, "hex");
     this.setClientDifficulty(client, this.config.baseDifficulty, { resetSent: false });
@@ -355,6 +363,7 @@ class StratumServer extends EventEmitter {
           await this.handleSubmit(client, msg.id, params);
           return;
         case "mining.extranonce.subscribe":
+          client.extranonceSubscribed = true;
           this.send(client, { id: msg.id, result: true, error: null });
           return;
         case "mining.configure":
@@ -481,16 +490,20 @@ class StratumServer extends EventEmitter {
   }
 
   async handleSubmit(client, id, params) {
+    const submitStartedAt = nowMs();
     if (!client.subscribed) {
       this.send(client, { id, result: null, error: STRATUM_ERRORS.notsubscribed });
+      this.recordSubmitResponseLatency(client, submitStartedAt, false);
       return;
     }
     if (!client.authorized) {
       this.send(client, { id, result: null, error: STRATUM_ERRORS.unauthorized });
+      this.recordSubmitResponseLatency(client, submitStartedAt, false);
       return;
     }
     if (params.length < 5) {
       this.send(client, { id, result: null, error: STRATUM_ERRORS.invalid });
+      this.recordSubmitResponseLatency(client, submitStartedAt, false);
       return;
     }
 
@@ -528,6 +541,7 @@ class StratumServer extends EventEmitter {
         result: null,
         error: STRATUM_ERRORS[share.code] || [20, share.message, null]
       });
+      this.recordSubmitResponseLatency(client, submitStartedAt, false);
       return;
     }
 
@@ -553,6 +567,7 @@ class StratumServer extends EventEmitter {
     this.logAcceptedShare(client, share);
 
     this.send(client, { id, result: true, error: null });
+    this.recordSubmitResponseLatency(client, submitStartedAt, true);
     this.jobManager.maybePrewarmBlockCandidatePayload?.(share);
 
     if (share.isBlockCandidate) {
@@ -590,6 +605,24 @@ class StratumServer extends EventEmitter {
     } else {
       client.avgAcceptedShareIntervalMs = deltaMs;
     }
+  }
+
+  recordSubmitResponseLatency(client, startedAt, accepted) {
+    const start = Number(startedAt || 0);
+    if (!Number.isFinite(start) || start <= 0) return;
+    const elapsedMs = Math.max(0, nowMs() - start);
+
+    const prevAck = Number(client.submitAckEmaMs || 0);
+    client.submitAckEmaMs = prevAck > 0
+      ? Math.round((prevAck * 0.8) + (elapsedMs * 0.2))
+      : elapsedMs;
+
+    const sampleReject = accepted ? 0 : 1;
+    const prevRejectRate = Number(client.submitRejectRateEma || 0);
+    client.submitRejectRateEma = Math.max(
+      0,
+      Math.min(1, (prevRejectRate * 0.8) + (sampleReject * 0.2))
+    );
   }
 
   recordShareSample(type, share, client) {
@@ -1009,8 +1042,27 @@ class StratumServer extends EventEmitter {
     });
   }
 
+  pushSetExtranonce(client, extranonce1Hex, extranonce2Size) {
+    if (!client.subscribed) return;
+    this.send(client, {
+      id: null,
+      method: "mining.set_extranonce",
+      params: [
+        normalizeHex(String(extranonce1Hex || "")).padStart(this.config.extranonce1Size * 2, "0"),
+        Math.max(1, Number(extranonce2Size || this.config.extranonce2Size || 8))
+      ]
+    });
+  }
+
   isVersionMaskOutsideNegotiatedError(message) {
     return /outside negotiated mask/i.test(String(message || ""));
+  }
+
+  isEspMinerLikeClient(client) {
+    const ua = String(client && client.userAgent ? client.userAgent : "");
+    const worker = String(client && client.workerName ? client.workerName : "");
+    const text = `${ua} ${worker}`.toLowerCase();
+    return /bitaxe|esp-?miner|nerd\s*axe|octaxe/.test(text);
   }
 
   isKnownNerdAxeClient(client) {
@@ -1028,6 +1080,10 @@ class StratumServer extends EventEmitter {
     const fastShareMs = Math.max(250, Number(this.config.nonceSpaceRefreshFastShareMs || 2000));
     if (avgMs > fastShareMs) return;
     if (!this.canTriggerNonceSpaceRefresh(client, acceptedAt)) return;
+    if (this.trySetExtranonceRefresh(client, "fast-share-rate", acceptedAt, { avgAcceptedShareIntervalMs: avgMs })) {
+      client.lastNonceSpaceRefreshAt = acceptedAt;
+      return;
+    }
 
     const refreshed = this.jobManager.requestNonceSpaceRefresh?.({
       trigger: "fast-share-rate",
@@ -1049,6 +1105,11 @@ class StratumServer extends EventEmitter {
 
     const now = nowMs();
     if (!this.canTriggerNonceSpaceRefresh(client, now)) return;
+    if (this.trySetExtranonceRefresh(client, "duplicate-streak", now, { duplicateShareStreak: client.duplicateShareStreak })) {
+      client.lastNonceSpaceRefreshAt = now;
+      client.duplicateShareStreak = 0;
+      return;
+    }
 
     const refreshed = this.jobManager.requestNonceSpaceRefresh?.({
       trigger: "duplicate-streak",
@@ -1066,6 +1127,48 @@ class StratumServer extends EventEmitter {
     const cooldownMs = Math.max(1000, Number(this.config.nonceSpaceRefreshCooldownMs || 8000));
     const lastAt = Math.max(0, Number(client.lastNonceSpaceRefreshAt || 0));
     return (now - lastAt) >= cooldownMs;
+  }
+
+  trySetExtranonceRefresh(client, trigger, now, extra) {
+    if (!this.config.enableSetExtranonceOrchestration) return false;
+    if (!client.subscribed || !client.authorized) return false;
+    if (!client.extranonceSubscribed) return false;
+
+    const cooldownMs = Math.max(1000, Number(this.config.setExtranonceRotateCooldownMs || 10000));
+    const lastAt = Math.max(0, Number(client.lastExtranonceRotateAt || 0));
+    if ((now - lastAt) < cooldownMs) return false;
+
+    const previousExtranonce1 = client.extranonce1Hex;
+    const nextExtranonce1 = this.allocateExtranonce1();
+    if (!nextExtranonce1 || nextExtranonce1 === previousExtranonce1) return false;
+
+    client.extranonce1Hex = nextExtranonce1;
+    client.extranonce1Raw = Buffer.from(nextExtranonce1, "hex");
+    client.lastExtranonceRotateAt = now;
+    client.extranonceRotateCount = Math.max(0, Number(client.extranonceRotateCount || 0)) + 1;
+
+    this.withCork(client, () => {
+      this.pushSetExtranonce(client, nextExtranonce1, this.config.extranonce2Size);
+      const job = this.jobManager.currentJobSnapshot();
+      if (job) {
+        this.pushJob(client, job, { cleanJobs: true });
+      }
+    });
+
+    const fields = extra && typeof extra === "object" ? extra : {};
+    this.logger.info("Rotated miner extranonce namespace", {
+      clientId: client.id,
+      remote: client.remote,
+      worker: client.workerName,
+      trigger,
+      previousExtranonce1,
+      nextExtranonce1,
+      extranonce2Size: this.config.extranonce2Size,
+      rotations: client.extranonceRotateCount,
+      avgAcceptedShareIntervalMs: Number(fields.avgAcceptedShareIntervalMs || 0) || null,
+      duplicateShareStreak: Number(fields.duplicateShareStreak || 0) || null
+    });
+    return true;
   }
 
   allocateExtranonce1() {
@@ -1105,17 +1208,134 @@ class StratumServer extends EventEmitter {
       && job.notifyLinesByMode[prevhashMode][cleanKey];
     if (prebuiltLine) {
       this.sendLine(client, prebuiltLine);
+      this.markJobNotifySent(client, cleanJobs);
       return;
     }
     const prevhashNotifyHex = (job.prevhashNotifyHexByMode && job.prevhashNotifyHexByMode[prevhashMode])
       || formatPrevhashForStratum(job.prevhashRpcHex, prevhashMode);
     this.send(client, buildNotifyPayload(job, prevhashNotifyHex, cleanJobs));
+    this.markJobNotifySent(client, cleanJobs);
+  }
+
+  markJobNotifySent(client, cleanJobs) {
+    const now = nowMs();
+    client.lastJobNotifyAt = now;
+    if (!cleanJobs) {
+      client.lastNonCleanJobNotifyAt = now;
+    }
+  }
+
+  shouldBroadcastJobToClient(client, job) {
+    if (!job || typeof job !== "object") {
+      return { send: false, reason: "invalid-job" };
+    }
+
+    const cleanJobs = Boolean(job.cleanJobs);
+    if (cleanJobs) {
+      return { send: true, reason: "clean-jobs" };
+    }
+    if (job.templateVariant === "nonce-refresh") {
+      return { send: true, reason: "nonce-refresh" };
+    }
+
+    const now = nowMs();
+    let minIntervalMs = 0;
+
+    if (this.config.enableAdaptiveNotifyPacing) {
+      minIntervalMs = Math.max(minIntervalMs, this.computeAdaptiveNotifyIntervalMs(client));
+    }
+
+    const isEspMiner = this.isEspMinerLikeClient(client);
+    if (this.config.enableEspMinerNotifyCoalescing && isEspMiner) {
+      minIntervalMs = Math.max(0, Math.max(
+        minIntervalMs,
+        Number(this.config.espMinerNotifyNoncleanMinIntervalMs || 0)
+      ));
+    }
+
+    if (minIntervalMs <= 0) {
+      return { send: true, reason: "interval-disabled" };
+    }
+
+    const sinceNonCleanMs = now - Math.max(0, Number(client.lastNonCleanJobNotifyAt || 0));
+    if (sinceNonCleanMs >= minIntervalMs) {
+      return { send: true, reason: "interval-ready" };
+    }
+
+    if (isEspMiner && this.config.enableEspMinerNotifyCoalescing) {
+      const forceMs = Math.max(1000, Number(this.config.espMinerNotifyForceIntervalMs || 15000));
+      const sinceAnyNotifyMs = now - Math.max(0, Number(client.lastJobNotifyAt || 0));
+      if (sinceAnyNotifyMs >= forceMs) {
+        return { send: true, reason: "esp-force-interval" };
+      }
+    }
+
+    return {
+      send: false,
+      reason: `notify-coalesced:${sinceNonCleanMs}/${minIntervalMs}`
+    };
+  }
+
+  computeAdaptiveNotifyIntervalMs(client) {
+    const base = Math.max(0, Number(this.config.adaptiveNotifyBaseIntervalMs || 0));
+    if (base <= 0) return 0;
+
+    const targetShareMs = Math.max(250, Number(this.config.adaptiveNotifyTargetShareMs || 2000));
+    const maxIntervalMs = Math.max(base, Number(this.config.adaptiveNotifyMaxIntervalMs || 5000));
+    const highAckMs = Math.max(1, Number(this.config.adaptiveNotifyHighAckMs || 200));
+    const highRejectRatio = Math.max(0, Math.min(1, Number(this.config.adaptiveNotifyHighRejectRatioPct || 5) / 100));
+
+    let intervalMs = base;
+
+    const avgShareMs = Number(client.avgAcceptedShareIntervalMs || 0);
+    if (Number.isFinite(avgShareMs) && avgShareMs > 0 && avgShareMs < targetShareMs) {
+      intervalMs += Math.floor((targetShareMs - avgShareMs) * 0.75);
+    }
+
+    const ackEmaMs = Number(client.submitAckEmaMs || 0);
+    if (Number.isFinite(ackEmaMs) && ackEmaMs > highAckMs) {
+      intervalMs += Math.floor((ackEmaMs - highAckMs) * 2);
+    }
+
+    const sampleCount = Math.max(0, Number(client.acceptedShares || 0) + Number(client.rejectedShares || 0));
+    if (sampleCount >= 10) {
+      const rejectRatio = Number(client.submitRejectRateEma || 0);
+      if (Number.isFinite(rejectRatio) && rejectRatio >= highRejectRatio) {
+        intervalMs = Math.floor(intervalMs * 1.5);
+      }
+    }
+
+    const duplicateStreak = Math.max(0, Number(client.duplicateShareStreak || 0));
+    if (duplicateStreak > 0) {
+      intervalMs += duplicateStreak * 250;
+    }
+
+    return Math.max(base, Math.min(maxIntervalMs, intervalMs));
   }
 
   broadcastJob(job) {
     let pushed = 0;
+    let skipped = 0;
     for (const client of this.clients.values()) {
       if (!client.subscribed || !client.authorized) continue;
+      const decision = this.shouldBroadcastJobToClient(client, job);
+      if (!decision.send) {
+        skipped += 1;
+        client.jobNotifySkipCount = Math.max(0, Number(client.jobNotifySkipCount || 0)) + 1;
+        if (client.jobNotifySkipCount <= 3 || client.jobNotifySkipCount % 50 === 0) {
+          this.logger.debug("Coalesced job notify for miner", {
+            clientId: client.id,
+            remote: client.remote,
+            worker: client.workerName,
+            reason: decision.reason,
+            jobId: job.jobId,
+            cleanJobs: Boolean(job.cleanJobs),
+            templateVariant: job.templateVariant || "full"
+          });
+        }
+        continue;
+      }
+      client.jobNotifySkipCount = 0;
       this.applyPendingDifficulty(client);
       this.withCork(client, () => {
         this.pushDifficulty(client, false);
@@ -1131,6 +1351,7 @@ class StratumServer extends EventEmitter {
         jobId: job.jobId,
         height: job.template.height,
         clients: pushed,
+        skipped,
         cleanJobs: Boolean(job.cleanJobs),
         templateVariant: job.templateVariant || "full"
       });
