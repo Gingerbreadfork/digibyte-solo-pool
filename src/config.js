@@ -59,7 +59,7 @@ function loadConfig() {
 
     enableLongpoll: toBool(process.env.ENABLE_LONGPOLL, true),
     templatePollMs: toInt(process.env.TEMPLATE_POLL_MS, 1000),
-    templatePollMsLongpollHealthy: toInt(process.env.TEMPLATE_POLL_MS_LONGPOLL_HEALTHY, 5000),
+    templatePollMsLongpollHealthy: toInt(process.env.TEMPLATE_POLL_MS_LONGPOLL_HEALTHY, 500),
     longpollHealthyGraceMs: toInt(process.env.LONGPOLL_HEALTHY_GRACE_MS, 120000),
     enableNewBlockFastpath: toBool(process.env.ENABLE_NEW_BLOCK_FASTPATH, true),
     newBlockFastpathTxLimit: toInt(process.env.NEW_BLOCK_FASTPATH_TX_LIMIT, 0),

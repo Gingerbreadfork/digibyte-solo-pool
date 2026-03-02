@@ -411,7 +411,7 @@ MINER_AUTH_TOKEN=                        # Optional: Require token in password (
 ```bash
 ENABLE_LONGPOLL=true                     # Enable longpoll for instant new block notification
 TEMPLATE_POLL_MS=1000                    # Template poll interval when longpoll unavailable
-TEMPLATE_POLL_MS_LONGPOLL_HEALTHY=5000   # Slower poll when longpoll is working
+TEMPLATE_POLL_MS_LONGPOLL_HEALTHY=500    # Backup poll even when longpoll is healthy
 LONGPOLL_HEALTHY_GRACE_MS=120000         # How long to consider longpoll healthy (2 minutes)
 ENABLE_NEW_BLOCK_FASTPATH=true           # On longpoll new block, send a minimal tx template first
 NEW_BLOCK_FASTPATH_TX_LIMIT=0            # Tx count for fastpath template (0 = near-empty block)
