@@ -200,6 +200,12 @@ class JobManager extends EventEmitter {
     }
 
     this.stats.recentBlocks = sanitizeRecentBlocksForRuntime(next);
+    if ((Number(this.stats.totalRewardSats) || 0) <= 0 && this.stats.recentBlocks.length > 0) {
+      this.stats.totalRewardSats = initializeTotalRewardSats({
+        totalRewardSats: 0,
+        recentBlocks: this.stats.recentBlocks
+      });
+    }
     this.stats.lastBlockCheckAt = now;
     if (!hadErrors) {
       this.stats.blockMonitorLastError = null;
@@ -263,18 +269,12 @@ class JobManager extends EventEmitter {
     }
 
     out.lastCheckedAt = Math.max(0, Math.floor(Number(checkedAt) || 0));
-    if (out.status === BLOCK_STATUS_CONFIRMED && previousStatus !== BLOCK_STATUS_CONFIRMED) {
-      this.stats.totalRewardSats = Math.max(0, Number(this.stats.totalRewardSats) || 0)
-        + Math.max(0, Math.floor(Number(out.rewardSats) || 0));
-    }
-    if (out.status === BLOCK_STATUS_ORPHANED && previousStatus === BLOCK_STATUS_CONFIRMED) {
+    if (out.status === BLOCK_STATUS_ORPHANED && previousStatus !== BLOCK_STATUS_ORPHANED) {
       this.stats.totalRewardSats = Math.max(
         0,
         Math.max(0, Number(this.stats.totalRewardSats) || 0)
           - Math.max(0, Math.floor(Number(out.rewardSats) || 0))
       );
-    }
-    if (out.status === BLOCK_STATUS_ORPHANED && previousStatus !== BLOCK_STATUS_ORPHANED) {
       this.stats.blocksOrphaned = Math.max(0, Number(this.stats.blocksOrphaned) || 0) + 1;
     }
     return out;
@@ -836,6 +836,7 @@ class JobManager extends EventEmitter {
         .reverse()
         .toString("hex");
       const rewardSats = Math.max(0, Math.floor(Number(job.template && job.template.coinbasevalue) || 0));
+      this.stats.totalRewardSats = Math.max(0, Number(this.stats.totalRewardSats) || 0) + rewardSats;
       this.stats.lastFoundBlockHash = shareResult.shareHashHex;
       this.stats.lastFoundBlockAt = foundAt;
       pushRecentBlock(this.stats, {
@@ -1356,7 +1357,7 @@ function initializeTotalRewardSats(stats) {
   let seeded = 0;
   for (let i = 0; i < blocks.length; i += 1) {
     const block = blocks[i];
-    if (block.status !== BLOCK_STATUS_CONFIRMED) continue;
+    if (block.status === BLOCK_STATUS_ORPHANED) continue;
     seeded += Math.max(0, Math.floor(Number(block.rewardSats) || 0));
   }
   return seeded;
