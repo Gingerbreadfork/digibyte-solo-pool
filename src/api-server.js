@@ -312,7 +312,6 @@ class ApiServer {
     for (const bucket of buckets) {
       if (bucket === "+Inf" || durationSec <= parseFloat(bucket)) {
         this.metrics.requestLatencyBuckets[bucket] += 1;
-        break;
       }
     }
   }
@@ -321,11 +320,8 @@ class ApiServer {
     const connections = this.stratumServer.snapshot();
     const uptimeSec = Math.floor((Date.now() - this.startedAt) / 1000);
 
-    // Calculate hashrate estimate from share rate (if we have shares)
     const totalShares = this.stats.sharesAccepted + this.stats.sharesRejected;
-    const hashrateEstimate = totalShares > 0
-      ? ((this.stats.sharesAccepted / uptimeSec) * 16384 * Math.pow(2, 32) / 600).toFixed(2) + " H/s"
-      : "0 H/s";
+    const hashrateEstimate = `${estimateHashrateHps(this.stats.recentShares, uptimeSec).toFixed(2)} H/s`;
 
     this.logger.info("Pool stats snapshot", {
       uptime: formatDuration(uptimeSec),
@@ -422,6 +418,40 @@ function formatDuration(seconds) {
   if (h > 0) return `${h}h ${m}m ${s}s`;
   if (m > 0) return `${m}m ${s}s`;
   return `${s}s`;
+}
+
+function estimateHashrateHps(recentShares, uptimeSec) {
+  if (!Array.isArray(recentShares) || recentShares.length === 0) return 0;
+
+  let workHashes = 0;
+  let oldest = Number.POSITIVE_INFINITY;
+  let newest = 0;
+  let validSamples = 0;
+
+  for (const sample of recentShares) {
+    const difficulty = Number(sample && sample.difficulty);
+    if (!Number.isFinite(difficulty) || difficulty <= 0) continue;
+    const t = Number(sample && sample.t);
+    if (Number.isFinite(t) && t > 0) {
+      if (t < oldest) oldest = t;
+      if (t > newest) newest = t;
+    }
+    workHashes += difficulty * (2 ** 32);
+    validSamples += 1;
+  }
+
+  if (validSamples === 0 || workHashes <= 0) return 0;
+
+  const spanSec = newest > oldest ? ((newest - oldest) / 1000) : 0;
+  if (spanSec > 0) {
+    return workHashes / spanSec;
+  }
+
+  if (uptimeSec > 0) {
+    return workHashes / uptimeSec;
+  }
+
+  return 0;
 }
 
 module.exports = { ApiServer };

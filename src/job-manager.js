@@ -5,11 +5,8 @@ const { createHash } = require("node:crypto");
 const {
   DIFF1_TARGET,
   normalizeHex,
-  hexToBuffer,
   reverseHex,
   varIntBuffer,
-  bip34HeightPush,
-  uint64LEBuffer,
   compactBitsToTarget,
   difficultyToTarget,
   doubleSha256,
@@ -19,6 +16,9 @@ const {
   nowMs,
   formatPrevhashForStratum
 } = require("./utils");
+const { buildCoinbasePieces } = require("./coinbase-builder");
+const { buildCoinbaseMerkleBranches, computeMerkleRootFromBranches } = require("./merkle");
+const { buildBlockHeader, resolveShareVersionHex } = require("./share-crypto");
 
 const MAX_RECENT_BLOCKS = 10;
 const MAX_TX_ARTIFACT_CACHE = 8;
@@ -959,151 +959,6 @@ class JobManager extends EventEmitter {
   }
 }
 
-function buildCoinbasePieces({
-  template,
-  payoutScriptHex,
-  poolTag,
-  extranonce1Size,
-  extranonce2Size,
-  segwitCommitmentScript
-}) {
-  const version = Buffer.from("01000000", "hex");
-  const markerFlag = Buffer.from("0001", "hex");
-  const inputCount = Buffer.from([0x01]);
-  const prevoutHash = Buffer.alloc(32, 0);
-  const prevoutIndex = Buffer.from("ffffffff", "hex");
-  const heightPush = bip34HeightPush(template.height || 0);
-  const coinbaseAuxFlags = template.coinbaseaux && template.coinbaseaux.flags
-    ? Buffer.from(normalizeHex(template.coinbaseaux.flags), "hex")
-    : Buffer.alloc(0);
-  const poolTagBuf = Buffer.from(String(poolTag), "utf8");
-  const scriptPrefix = Buffer.concat([heightPush, coinbaseAuxFlags, poolTagBuf]);
-
-  const totalScriptLen = scriptPrefix.length + extranonce1Size + extranonce2Size;
-  if (totalScriptLen > 100) {
-    throw new Error(`coinbase scriptSig too large (${totalScriptLen} > 100)`);
-  }
-  const scriptLen = varIntBuffer(totalScriptLen);
-  const sequence = Buffer.from("ffffffff", "hex");
-
-  const outputs = [];
-  const payoutScript = Buffer.from(normalizeHex(payoutScriptHex), "hex");
-  outputs.push(Buffer.concat([
-    uint64LEBuffer(BigInt(template.coinbasevalue)),
-    varIntBuffer(payoutScript.length),
-    payoutScript
-  ]));
-
-  if (segwitCommitmentScript) {
-    const commitmentScript = Buffer.from(segwitCommitmentScript, "hex");
-    outputs.push(Buffer.concat([
-      uint64LEBuffer(0n),
-      varIntBuffer(commitmentScript.length),
-      commitmentScript
-    ]));
-  }
-
-  const outputsBlob = Buffer.concat([
-    varIntBuffer(outputs.length),
-    ...outputs
-  ]);
-
-  const locktime = Buffer.alloc(4, 0);
-
-  const witnessSection = segwitCommitmentScript
-    ? Buffer.concat([Buffer.from([0x01, 0x20]), Buffer.alloc(32, 0)])
-    : Buffer.alloc(0);
-
-  const baseInputPrefix = Buffer.concat([
-    inputCount,
-    prevoutHash,
-    prevoutIndex,
-    scriptLen,
-    scriptPrefix
-  ]);
-
-  const baseInputSuffix = sequence;
-
-  const merkleCoinbase1 = Buffer.concat([version, baseInputPrefix]);
-  const merkleCoinbase2 = Buffer.concat([baseInputSuffix, outputsBlob, locktime]);
-
-  const blockCoinbase1 = segwitCommitmentScript
-    ? Buffer.concat([version, markerFlag, baseInputPrefix])
-    : merkleCoinbase1;
-  const blockCoinbase2 = segwitCommitmentScript
-    ? Buffer.concat([baseInputSuffix, outputsBlob, witnessSection, locktime])
-    : merkleCoinbase2;
-
-  return {
-    merkleCoinbase1Hex: merkleCoinbase1.toString("hex"),
-    merkleCoinbase1Raw: merkleCoinbase1,
-    merkleCoinbase2Hex: merkleCoinbase2.toString("hex"),
-    merkleCoinbase2Raw: merkleCoinbase2,
-    blockCoinbase1Hex: blockCoinbase1.toString("hex"),
-    blockCoinbase2Hex: blockCoinbase2.toString("hex")
-  };
-}
-
-function buildCoinbaseMerkleBranches(txidLeaves) {
-  if (!txidLeaves.length) return [];
-
-  let layer = [null, ...txidLeaves];
-  const branches = [];
-
-  while (layer.length > 1) {
-    if (layer.length % 2 === 1) {
-      layer.push(layer[layer.length - 1]);
-    }
-
-    if (layer[0] === null) {
-      if (!Buffer.isBuffer(layer[1])) {
-        throw new Error("Invalid merkle construction: missing sibling for coinbase");
-      }
-      branches.push(layer[1]);
-    } else {
-      throw new Error("Merkle placeholder was not preserved");
-    }
-
-    const next = [];
-    for (let i = 0; i < layer.length; i += 2) {
-      const left = layer[i];
-      const right = layer[i + 1];
-      if (left === null || right === null) {
-        next.push(null);
-      } else {
-        next.push(doubleSha256(Buffer.concat([left, right])));
-      }
-    }
-    layer = next;
-  }
-
-  return branches;
-}
-
-function computeMerkleRootFromBranches(coinbaseHashRaw, branchHexes) {
-  let hash = coinbaseHashRaw;
-  for (const branchHex of branchHexes) {
-    const branch = Buffer.isBuffer(branchHex) ? branchHex : Buffer.from(branchHex, "hex");
-    hash = doubleSha256(Buffer.concat([hash, branch]));
-  }
-  return hash;
-}
-
-function buildBlockHeader({ versionHex, prevhashRaw, merkleRootRaw, ntimeHex, bitsHex, nonceHex }) {
-  const versionLe = uint32LEBuffer(Number.parseInt(versionHex, 16));
-  const timeLe = uint32LEBuffer(Number.parseInt(ntimeHex, 16));
-  const bitsLe = Buffer.from(normalizeHex(bitsHex), "hex").reverse();
-  const nonceLe = Buffer.from(normalizeHex(nonceHex), "hex").reverse();
-
-  return Buffer.concat([
-    versionLe,
-    prevhashRaw,
-    merkleRootRaw,
-    timeLe,
-    bitsLe,
-    nonceLe
-  ]);
-}
 
 function buildHeaderDiagnostics({
   versionHex,
@@ -1169,55 +1024,6 @@ function summarizeHeaderVariant(v) {
     passesTarget: v.passesTarget,
     shareDifficulty: v.shareDifficulty.toString(),
     shareHash: v.shareHashHex
-  };
-}
-
-function resolveShareVersionHex({
-  baseVersionHex,
-  versionBitsHex,
-  versionRollingEnabled,
-  versionRollingMaskHex
-}) {
-  const baseHex = normalizeHex(baseVersionHex).padStart(8, "0");
-  if (baseHex.length !== 8) {
-    return { ok: false, message: "Invalid job version" };
-  }
-
-  if (!versionRollingEnabled) {
-    return { ok: true, versionHex: baseHex, versionBitsHex: null };
-  }
-
-  const maskHex = normalizeHex(versionRollingMaskHex || "00000000").padStart(8, "0");
-  if (maskHex.length !== 8) {
-    return { ok: false, message: "Invalid version rolling mask" };
-  }
-
-  if (versionBitsHex === undefined || versionBitsHex === null || String(versionBitsHex) === "") {
-    return { ok: true, versionHex: baseHex, versionBitsHex: null };
-  }
-
-  const bitsHex = normalizeHex(String(versionBitsHex)).padStart(8, "0");
-  if (bitsHex.length !== 8) {
-    return { ok: false, message: "version rolling bits must be 4-byte hex" };
-  }
-
-  const baseVersion = Number.parseInt(baseHex, 16) >>> 0;
-  const mask = Number.parseInt(maskHex, 16) >>> 0;
-  const bits = Number.parseInt(bitsHex, 16) >>> 0;
-  const baseFixedBits = (baseVersion & (~mask >>> 0)) >>> 0;
-  const submittedFixedBits = (bits & (~mask >>> 0)) >>> 0;
-
-  // Some miners submit only masked rolling bits (expected), while others submit the full
-  // 32-bit version with fixed bits included. Accept both forms if fixed bits are compatible.
-  if (submittedFixedBits !== 0 && submittedFixedBits !== baseFixedBits) {
-    return { ok: false, message: "version rolling bits outside negotiated mask" };
-  }
-
-  const version = (baseFixedBits | (bits & mask)) >>> 0;
-  return {
-    ok: true,
-    versionHex: toFixedHexU32(version),
-    versionBitsHex: bitsHex
   };
 }
 
