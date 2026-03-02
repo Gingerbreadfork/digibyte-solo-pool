@@ -1013,6 +1013,40 @@ function renderDashboardHtml() {
       box-shadow: inset 0 1px 8px rgba(255, 255, 255, 0.02);
     }
 
+    .luck-item.flat {
+      border-color: var(--line-soft);
+    }
+
+    .luck-item.good {
+      border-color: rgba(109, 243, 162, 0.55);
+      box-shadow: inset 0 1px 8px rgba(109, 243, 162, 0.12), 0 0 0 1px rgba(109, 243, 162, 0.12);
+    }
+
+    .luck-item.warn {
+      border-color: rgba(255, 193, 95, 0.55);
+      box-shadow: inset 0 1px 8px rgba(255, 193, 95, 0.1), 0 0 0 1px rgba(255, 193, 95, 0.1);
+    }
+
+    .luck-item.bad {
+      border-color: rgba(255, 116, 120, 0.56);
+      box-shadow: inset 0 1px 8px rgba(255, 116, 120, 0.12), 0 0 0 1px rgba(255, 116, 120, 0.1);
+    }
+
+    .luck-item.hot {
+      border-color: rgba(166, 255, 111, 0.78);
+      box-shadow: inset 0 1px 10px rgba(166, 255, 111, 0.2), 0 0 0 1px rgba(166, 255, 111, 0.18);
+      animation: luckPulse 1.8s ease-in-out infinite;
+    }
+
+    @keyframes luckPulse {
+      0%, 100% {
+        box-shadow: inset 0 1px 10px rgba(166, 255, 111, 0.16), 0 0 0 0 rgba(166, 255, 111, 0.28);
+      }
+      50% {
+        box-shadow: inset 0 1px 10px rgba(166, 255, 111, 0.3), 0 0 0 6px rgba(166, 255, 111, 0.05);
+      }
+    }
+
     [data-theme="light"] .luck-item {
       background:
         linear-gradient(180deg, rgba(255, 255, 255, 0.88), rgba(252, 245, 234, 0.82)),
@@ -1838,6 +1872,21 @@ function renderDashboardHtml() {
             <div class="luck-value" id="ttb-estimate">-</div>
             <div class="luck-hint" id="ttb-hint">Based on current hashrate</div>
           </div>
+          <div class="luck-item">
+            <div class="luck-label">SHA256d Difficulty</div>
+            <div class="luck-value" id="network-difficulty">-</div>
+            <div class="luck-hint" id="network-difficulty-hint">Waiting for templates</div>
+          </div>
+          <div class="luck-item">
+            <div class="luck-label">Difficulty Trend</div>
+            <div class="luck-value" id="difficulty-trend">-</div>
+            <div class="luck-hint" id="difficulty-trend-hint">rolling window</div>
+          </div>
+          <div class="luck-item" id="luck-meter-card">
+            <div class="luck-label">Luck Meter</div>
+            <div class="luck-value" id="luck-meter">-</div>
+            <div class="luck-hint" id="luck-meter-hint">Monitoring difficulty changes</div>
+          </div>
         </div>
       </article>
 
@@ -1890,10 +1939,10 @@ function renderDashboardHtml() {
       </article>
       <article class="card chart-card span-6">
         <div class="chart-head">
-          <div class="title">Height and Job Activity</div>
-          <div id="height-chart-meta" class="meta">tip and broadcasts</div>
+          <div class="title">SHA256d Difficulty Observatory</div>
+          <div id="difficulty-chart-meta" class="meta">waiting for templates</div>
         </div>
-        <div class="chart-wrap"><canvas id="height-chart" aria-label="Height chart"></canvas></div>
+        <div class="chart-wrap"><canvas id="difficulty-chart" aria-label="SHA256d difficulty chart"></canvas></div>
       </article>
     </section>
 
@@ -2011,7 +2060,7 @@ function renderDashboardHtml() {
       blocksOrphaned: d.getElementById("blocks-orphaned"),
       lifetimeDgbMined: d.getElementById("lifetime-dgb-mined"),
       jobBcasts: d.getElementById("job-bcasts"),
-      heightChartMeta: d.getElementById("height-chart-meta"),
+      difficultyChartMeta: d.getElementById("difficulty-chart-meta"),
       tmplSource: d.getElementById("tmpl-source"),
       tmplBits: d.getElementById("tmpl-bits"),
       tmplFetched: d.getElementById("tmpl-fetched"),
@@ -2037,6 +2086,13 @@ function renderDashboardHtml() {
       bestShareAlltimeHint: d.getElementById("best-share-alltime-hint"),
       ttbEstimate: d.getElementById("ttb-estimate"),
       ttbHint: d.getElementById("ttb-hint"),
+      networkDifficulty: d.getElementById("network-difficulty"),
+      networkDifficultyHint: d.getElementById("network-difficulty-hint"),
+      difficultyTrend: d.getElementById("difficulty-trend"),
+      difficultyTrendHint: d.getElementById("difficulty-trend-hint"),
+      luckMeterCard: d.getElementById("luck-meter-card"),
+      luckMeter: d.getElementById("luck-meter"),
+      luckMeterHint: d.getElementById("luck-meter-hint"),
       blockList: d.getElementById("block-list"),
       blocksMeta: d.getElementById("blocks-meta"),
       luckMeta: d.getElementById("luck-meta"),
@@ -2062,11 +2118,11 @@ function renderDashboardHtml() {
         fillA: "rgba(67,255,209,.10)",
         fillB: "rgba(255,113,113,.08)"
       }),
-      height: createChart(d.getElementById("height-chart"), {
+      difficulty: createChart(d.getElementById("difficulty-chart"), {
         a: "#59b3ff",
-        b: "#b3ff4a",
-        fillA: "rgba(89,179,255,.10)",
-        fillB: "rgba(179,255,74,.08)"
+        b: "#a6ff6f",
+        fillA: "rgba(89,179,255,.14)",
+        fillB: "rgba(166,255,111,.10)"
       })
     };
     charts.heroDiff.hitPoints = [];
@@ -2093,7 +2149,6 @@ function renderDashboardHtml() {
     const history = {
       sharesAcceptedDelta: ring(MAX_POINTS),
       sharesRejectedDelta: ring(MAX_POINTS),
-      height: ring(MAX_POINTS),
       broadcastsDelta: ring(MAX_POINTS)
     };
 
@@ -2604,6 +2659,19 @@ function renderDashboardHtml() {
       return (diff / 1000000000000).toFixed(2) + 'T';
     }
 
+    function fmtSignedPct(pct) {
+      const n = safeNum(pct, 0);
+      if (!Number.isFinite(n)) return "0.00%";
+      const sign = n > 0 ? "+" : "";
+      return sign + n.toFixed(2) + "%";
+    }
+
+    function normalizeDifficultyTrend(value) {
+      const v = String(value || "").toLowerCase();
+      if (v === "rising" || v === "falling") return v;
+      return "flat";
+    }
+
     /**
      * Updates worker hashrate tracking based on share deltas between polls.
      * Maintains a rolling window of samples to calculate average hashrate.
@@ -2749,6 +2817,7 @@ function renderDashboardHtml() {
     function updateModel(payload, fetchMs) {
       const stats = payload && payload.stats ? payload.stats : {};
       const job = payload && payload.job ? payload.job : null;
+      const difficulty = payload && payload.difficulty ? payload.difficulty : {};
       const con = payload && payload.connections ? payload.connections : {};
       const workers = (con && Array.isArray(con.workers)) ? con.workers : [];
       const now = Date.now();
@@ -2809,7 +2878,6 @@ function renderDashboardHtml() {
 
       ringPush(history.sharesAcceptedDelta, acceptedDelta);
       ringPush(history.sharesRejectedDelta, rejectedDelta);
-      ringPush(history.height, height);
       ringPush(history.broadcastsDelta, bcastDelta);
 
       const totalShares = accepted + rejected;
@@ -2829,6 +2897,7 @@ function renderDashboardHtml() {
         fetchMs,
         payload,
         job,
+        difficulty,
         con,
         stats,
         workers,
@@ -2858,7 +2927,11 @@ function renderDashboardHtml() {
           avgDifficulty,
           bestShareDifficulty: safeNum(stats.bestShareDifficulty, 0),
           bestShareWorker: stats.bestShareWorker || null,
-          bestShareAt: safeNum(stats.bestShareAt, 0)
+          bestShareAt: safeNum(stats.bestShareAt, 0),
+          networkDifficulty: safeNum(difficulty.current, 0),
+          difficultyTrend: normalizeDifficultyTrend(difficulty.trend),
+          difficultyChangePct: safeNum(difficulty.changePct, 0),
+          difficultyTtbSec: safeNum(difficulty.ttbSec, -1)
         }
       };
       queueRender();
@@ -3064,6 +3137,7 @@ function renderDashboardHtml() {
       const c = p.connections || {};
       const runtime = p.runtime || {};
       const d0 = m.derived;
+      const diff = m.difficulty || {};
       const workers = m.workers || [];
 
       const recentFetchAge = lastFetchDoneAt ? (now - lastFetchDoneAt) : Infinity;
@@ -3121,19 +3195,15 @@ function renderDashboardHtml() {
 
       const shareA = ringToArray(history.sharesAcceptedDelta);
       const shareB = ringToArray(history.sharesRejectedDelta);
-      const heightsRaw = ringToArray(history.height);
-      const bcasts = ringToArray(history.broadcastsDelta);
       renderHeroDifficulty(Array.isArray(s.recentShares) ? s.recentShares : []);
       drawDualChart(charts.shares, shareA, shareB);
       text(refs.sharesChartMeta, "acc " + fmtInt(d0.acceptedDelta) + " / rej " + fmtInt(d0.rejectedDelta) + " this tick");
 
-      const heights = normalizeSeries(heightsRaw);
-      drawDualChart(charts.height, heights, bcasts);
-      text(refs.heightChartMeta, "height " + (j ? fmtInt(j.height) : "-") + " • bcasts/min " + fmtInt(d0.recentBcastsPerMin));
+      renderDifficultyObservatory(diff, s);
 
       renderWorkerList(workers);
       renderTimeline();
-      renderLuckStats(j, d0);
+      renderLuckStats(j, d0, diff);
       renderBlocksList();
       renderHealthIndicators(s, now, workers.length);
     }
@@ -3241,6 +3311,48 @@ function renderDashboardHtml() {
       refs.workerList.innerHTML = html;
     }
 
+    function renderDifficultyObservatory(diff, stats) {
+      const samplesRaw = Array.isArray(stats && stats.recentDifficultySamples)
+        ? stats.recentDifficultySamples.slice(-MAX_POINTS)
+        : [];
+      const difficulties = [];
+      for (let i = 0; i < samplesRaw.length; i += 1) {
+        const d0 = safeNum(samplesRaw[i] && samplesRaw[i].difficulty, 0);
+        if (d0 > 0) difficulties.push(d0);
+      }
+
+      if (!difficulties.length) {
+        drawDualChart(charts.difficulty, [], []);
+        text(refs.difficultyChartMeta, "waiting for templates");
+        return;
+      }
+
+      const smoothed = emaSeries(difficulties, 0.22);
+      drawDualChart(charts.difficulty, normalizeSeries(difficulties), normalizeSeries(smoothed));
+
+      const current = safeNum(diff && diff.current, difficulties[difficulties.length - 1]);
+      const trend = normalizeDifficultyTrend(diff && diff.trend);
+      const changePct = safeNum(diff && diff.changePct, 0);
+      text(
+        refs.difficultyChartMeta,
+        "current " + fmtDifficulty(current) + " • " + trend + " " + fmtSignedPct(changePct) + " • " + fmtInt(difficulties.length) + " samples"
+      );
+    }
+
+    function emaSeries(values, alpha) {
+      if (!Array.isArray(values) || values.length === 0) return [];
+      const out = new Array(values.length);
+      const a = Math.max(0.01, Math.min(1, safeNum(alpha, 0.2)));
+      let prev = safeNum(values[0], 0);
+      out[0] = prev;
+      for (let i = 1; i < values.length; i += 1) {
+        const v = safeNum(values[i], prev);
+        prev = (prev * (1 - a)) + (v * a);
+        out[i] = prev;
+      }
+      return out;
+    }
+
     function renderHeroDifficulty(samples) {
       const list = Array.isArray(samples) ? samples.slice(-180) : [];
       charts.heroDiff.lastSamples = list;
@@ -3313,9 +3425,11 @@ function renderDashboardHtml() {
       timelineNewSinceRender = 0;
     }
 
-    function renderLuckStats(job, derived) {
-      // Calculate network difficulty from job bits
-      const networkDifficulty = job ? calculateDifficultyFromBits(job.bits) : 0;
+    function renderLuckStats(job, derived, difficulty) {
+      const diff = difficulty || {};
+      const networkDifficulty = safeNum(diff.current, job ? calculateDifficultyFromBits(job.bits) : 0);
+      const trend = normalizeDifficultyTrend(diff.trend);
+      const changePct = safeNum(diff.changePct, 0);
 
       // Update best share session from backend stats
       // The backend now tracks actual share difficulty (not average worker difficulty)
@@ -3356,8 +3470,29 @@ function renderDashboardHtml() {
         text(refs.bestShareAlltimeHint, 'No shares yet');
       }
 
+      if (networkDifficulty > 0) {
+        text(refs.networkDifficulty, fmtDifficulty(networkDifficulty));
+        const bitsText = diff.bits ? ("bits " + diff.bits) : "bits -";
+        text(refs.networkDifficultyHint, bitsText + " • updated " + fmtTsAge(diff.updatedAt) + " ago");
+      } else {
+        text(refs.networkDifficulty, '-');
+        text(refs.networkDifficultyHint, 'Waiting for templates');
+      }
+
+      text(refs.difficultyTrend, trend + " " + fmtSignedPct(changePct));
+      text(refs.difficultyTrendHint, "window " + fmtInt(safeNum(diff.window, 0)) + " samples");
+
+      const luckMeter = classifyLuckMeter(trend, changePct);
+      refs.luckMeterCard.className = "luck-item " + luckMeter.level;
+      text(refs.luckMeter, luckMeter.label);
+      text(refs.luckMeterHint, luckMeter.hint);
+
       // Calculate time to block estimate
-      if (derived.poolHashrate > 0 && networkDifficulty > 0) {
+      const ttbSec = safeNum(diff.ttbSec, -1);
+      if (ttbSec > 0) {
+        text(refs.ttbEstimate, fmtAgeMs(ttbSec * 1000));
+        text(refs.ttbHint, \`At \${fmtHashrate(safeNum(diff.hashrateHps, derived.poolHashrate))} • Network diff \${fmtDifficulty(networkDifficulty)}\`);
+      } else if (derived.poolHashrate > 0 && networkDifficulty > 0) {
         // Expected shares to find a block = network difficulty
         // Time = (network_diff * 2^32) / pool_hashrate
         const expectedSeconds = (networkDifficulty * Math.pow(2, 32)) / derived.poolHashrate;
@@ -3369,15 +3504,49 @@ function renderDashboardHtml() {
       }
     }
 
+    function classifyLuckMeter(trend, changePct) {
+      if (trend === "falling" && changePct <= -8) {
+        return {
+          level: "hot",
+          label: "Hot window",
+          hint: "Difficulty dipped hard. Odds are improved right now."
+        };
+      }
+      if (trend === "falling") {
+        return {
+          level: "good",
+          label: "Improving",
+          hint: "Difficulty is easing. This is a favorable window."
+        };
+      }
+      if (trend === "rising" && changePct >= 8) {
+        return {
+          level: "bad",
+          label: "Headwind",
+          hint: "Difficulty is climbing fast. Expect longer time to block."
+        };
+      }
+      if (trend === "rising") {
+        return {
+          level: "warn",
+          label: "Tightening",
+          hint: "Difficulty is rising. Odds are slightly worse."
+        };
+      }
+      return {
+        level: "flat",
+        label: "Neutral",
+        hint: "Difficulty is stable."
+      };
+    }
+
     function calculateDifficultyFromBits(bitsHex) {
       if (!bitsHex || typeof bitsHex !== 'string') return 0;
       const bits = parseInt(bitsHex, 16);
       const exp = bits >> 24;
       const mant = bits & 0xffffff;
-      const target = mant * Math.pow(256, exp - 3);
-      // Difficulty 1 target for SHA256d
-      const diff1Target = 0x00000000ffff0000000000000000000000000000000000000000000000000000;
-      return diff1Target / target;
+      if (!Number.isFinite(exp) || !Number.isFinite(mant) || mant <= 0) return 0;
+      return (0x00ffff / mant) * Math.pow(2, 8 * (0x1d - exp));
     }
 
     function renderBlocksList() {

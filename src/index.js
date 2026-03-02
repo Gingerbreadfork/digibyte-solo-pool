@@ -32,6 +32,13 @@ async function main() {
     blocksRejected: 0,
     blocksOrphaned: 0,
     totalRewardSats: 0,
+    currentDifficulty: 0,
+    currentDifficultyBits: null,
+    currentDifficultyHeight: 0,
+    difficultyTrend: "flat",
+    difficultyTrendChangePct: 0,
+    difficultyTrendWindow: 0,
+    difficultyLastUpdateAt: 0,
     currentHeight: 0,
     currentNetworkBits: null,
     lastTemplateAt: 0,
@@ -52,6 +59,7 @@ async function main() {
     blockMonitorErrors: 0,
     blockMonitorLastError: null,
     recentShares: [],
+    recentDifficultySamples: [],
     recentBlocks: []
   };
   const statsPersistence = new StatsPersistence(config, logger.child("stats-persistence"), stats);

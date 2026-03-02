@@ -4,6 +4,7 @@ const http = require("node:http");
 const https = require("node:https");
 const fs = require("node:fs");
 const { renderDashboardHtml } = require("./dashboard-page");
+const { compactBitsToDifficulty } = require("./utils");
 
 class ApiServer {
   constructor(config, logger, stats, jobManager, stratumServer) {
@@ -164,8 +165,9 @@ class ApiServer {
     if (url.pathname === "/stats") {
       const job = this.jobManager.currentJobSnapshot();
       const connections = this.stratumServer.snapshot();
+      const uptimeSec = Math.floor((Date.now() - this.startedAt) / 1000);
       return this.writeJson(res, 200, {
-        uptimeSec: Math.floor((Date.now() - this.startedAt) / 1000),
+        uptimeSec,
         job: job ? {
           id: job.jobId,
           height: job.template.height,
@@ -177,6 +179,7 @@ class ApiServer {
         } : null,
         connections,
         stats: this.stats,
+        difficulty: buildDifficultySnapshot(this.stats, job, uptimeSec),
         runtime: {
           poolPayoutAddress: this.config.poolPayoutAddress || "",
           poolPayoutAddressExplorerBase: this.config.poolPayoutAddressExplorerBase || ""
@@ -262,8 +265,9 @@ class ApiServer {
 
     const job = this.jobManager.currentJobSnapshot();
     const connections = this.stratumServer.snapshot();
+    const uptimeSec = Math.floor((Date.now() - this.startedAt) / 1000);
     const data = {
-      uptimeSec: Math.floor((Date.now() - this.startedAt) / 1000),
+      uptimeSec,
       job: job ? {
         id: job.jobId,
         height: job.template.height,
@@ -275,6 +279,7 @@ class ApiServer {
       } : null,
       connections,
       stats: this.stats,
+      difficulty: buildDifficultySnapshot(this.stats, job, uptimeSec),
       runtime: {
         poolPayoutAddress: this.config.poolPayoutAddress || "",
         poolPayoutAddressExplorerBase: this.config.poolPayoutAddressExplorerBase || ""
@@ -327,6 +332,8 @@ class ApiServer {
   }
 
   logStats() {
+    if (!this.config.logPoolStatsSnapshot) return;
+
     const connections = this.stratumServer.snapshot();
     const uptimeSec = Math.floor((Date.now() - this.startedAt) / 1000);
 
@@ -464,6 +471,45 @@ function estimateHashrateHps(recentShares, uptimeSec) {
   }
 
   return 0;
+}
+
+function buildDifficultySnapshot(stats, job, uptimeSec) {
+  const source = stats && typeof stats === "object" ? stats : {};
+  const currentBits = typeof source.currentDifficultyBits === "string" && source.currentDifficultyBits
+    ? source.currentDifficultyBits
+    : (job && typeof job.bits === "string" ? job.bits : "");
+  const currentDifficulty = Number(source.currentDifficulty) > 0
+    ? Number(source.currentDifficulty)
+    : (currentBits ? compactBitsToDifficulty(currentBits) : 0);
+  const trend = normalizeDifficultyTrend(source.difficultyTrend);
+  const changePct = Number.isFinite(Number(source.difficultyTrendChangePct))
+    ? Math.round(Number(source.difficultyTrendChangePct) * 100) / 100
+    : 0;
+  const hashrateHps = estimateHashrateHps(source.recentShares, uptimeSec);
+  const ttbSec = currentDifficulty > 0 && hashrateHps > 0
+    ? Math.max(0, Math.floor((currentDifficulty * (2 ** 32)) / hashrateHps))
+    : -1;
+
+  return {
+    current: currentDifficulty,
+    bits: currentBits || null,
+    height: Math.max(
+      0,
+      Number(source.currentDifficultyHeight || (job && job.height ? job.height : 0)) || 0
+    ),
+    trend,
+    changePct,
+    window: Math.max(0, Number(source.difficultyTrendWindow || 0) || 0),
+    updatedAt: Math.max(0, Number(source.difficultyLastUpdateAt || 0) || 0),
+    ttbSec,
+    hashrateHps
+  };
+}
+
+function normalizeDifficultyTrend(value) {
+  const v = String(value || "").toLowerCase();
+  if (v === "rising" || v === "falling") return v;
+  return "flat";
 }
 
 module.exports = { ApiServer };

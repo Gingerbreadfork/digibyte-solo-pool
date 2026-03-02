@@ -8,6 +8,7 @@ const {
   reverseHex,
   varIntBuffer,
   compactBitsToTarget,
+  compactBitsToDifficulty,
   difficultyToTarget,
   doubleSha256,
   bufferToBigIntLE,
@@ -23,6 +24,9 @@ const { buildBlockHeader, resolveShareVersionHex } = require("./share-crypto");
 const MAX_RECENT_BLOCKS = 10;
 const MAX_TX_ARTIFACT_CACHE = 8;
 const MAX_COINBASE_PIECES_CACHE = 32;
+const MAX_DIFFICULTY_SAMPLES = 360;
+const DIFFICULTY_TREND_WINDOW = 24;
+const DIFFICULTY_TREND_EPSILON_PCT = 0.5;
 const BLOCK_STATUS_PENDING = "pending";
 const BLOCK_STATUS_CONFIRMED = "confirmed";
 const BLOCK_STATUS_ORPHANED = "orphaned";
@@ -55,8 +59,10 @@ class JobManager extends EventEmitter {
     this.speculativePrebuildSeq = 0;
     this.lastNonceSpaceRefreshAt = 0;
     this.stats.recentBlocks = sanitizeRecentBlocksForRuntime(this.stats.recentBlocks);
+    this.stats.recentDifficultySamples = sanitizeRecentDifficultySamplesForRuntime(this.stats.recentDifficultySamples);
     this.stats.templatePollFailureStreak = this.templatePollFailureStreak;
     this.stats.totalRewardSats = initializeTotalRewardSats(this.stats);
+    applyDifficultyObservatoryStats(this.stats, this.stats.recentDifficultySamples);
   }
 
   async init() {
@@ -347,6 +353,35 @@ class JobManager extends EventEmitter {
     }
   }
 
+  recordDifficultySample(template) {
+    if (!template || typeof template !== "object") return;
+
+    const bitsHex = safeNormalizeHex(template.bits).padStart(8, "0");
+    if (!bitsHex || bitsHex.length !== 8) return;
+
+    const difficulty = compactBitsToDifficulty(bitsHex);
+    if (!Number.isFinite(difficulty) || difficulty <= 0) return;
+
+    const sample = {
+      t: nowMs(),
+      height: Math.max(0, Math.floor(Number(template.height) || 0)),
+      bits: bitsHex,
+      difficulty
+    };
+
+    const samples = sanitizeRecentDifficultySamplesForRuntime(this.stats.recentDifficultySamples);
+    const last = samples.length > 0 ? samples[samples.length - 1] : null;
+    if (!last || last.bits !== sample.bits || last.height !== sample.height) {
+      samples.push(sample);
+      while (samples.length > MAX_DIFFICULTY_SAMPLES) {
+        samples.shift();
+      }
+      this.stats.recentDifficultySamples = samples;
+    }
+
+    applyDifficultyObservatoryStats(this.stats, this.stats.recentDifficultySamples);
+  }
+
   handleTemplate(template, source) {
     if (!template || typeof template !== "object") {
       throw new Error("GBT returned empty template");
@@ -366,6 +401,8 @@ class JobManager extends EventEmitter {
       });
       return;
     }
+
+    this.recordDifficultySample(template);
 
     const fingerprint = buildTemplateFingerprint(template, this.config.templateFingerprintMode);
 
@@ -417,19 +454,21 @@ class JobManager extends EventEmitter {
 
     const txCount = 1 + job.transactions.length;
     const originalTxCount = 1 + Math.max(job.transactions.length, Number(opts.originalTxCount || 0));
-    this.logger.info("New mining job", {
-      source,
-      jobId: job.jobId,
-      height: job.template.height,
-      txCount,
-      originalTxCount,
-      cleanJobs: Boolean(job.cleanJobs),
-      segwit: job.segwit,
-      templateVariant: job.templateVariant,
-      txArtifactsCacheHit: Boolean(job.txArtifactsCacheHit),
-      coinbasePiecesCacheHit: Boolean(job.coinbasePiecesCacheHit),
-      followupFromFastpath: Boolean(opts.isFollowup)
-    });
+    if (this.config.logNewJobs) {
+      this.logger.info("New mining job", {
+        source,
+        jobId: job.jobId,
+        height: job.template.height,
+        txCount,
+        originalTxCount,
+        cleanJobs: Boolean(job.cleanJobs),
+        segwit: job.segwit,
+        templateVariant: job.templateVariant,
+        txArtifactsCacheHit: Boolean(job.txArtifactsCacheHit),
+        coinbasePiecesCacheHit: Boolean(job.coinbasePiecesCacheHit),
+        followupFromFastpath: Boolean(opts.isFollowup)
+      });
+    }
   }
 
   scheduleSpeculativeNextTemplatePrebuild(template) {
@@ -1321,6 +1360,70 @@ function initializeTotalRewardSats(stats) {
     seeded += Math.max(0, Math.floor(Number(block.rewardSats) || 0));
   }
   return seeded;
+}
+
+function sanitizeRecentDifficultySamplesForRuntime(input) {
+  if (!Array.isArray(input)) return [];
+  const out = [];
+  for (let i = 0; i < input.length; i += 1) {
+    const sample = input[i];
+    if (!sample || typeof sample !== "object") continue;
+    const bits = safeNormalizeHex(sample.bits);
+    if (!bits) continue;
+
+    const difficultyRaw = Number(sample.difficulty);
+    const difficulty = (Number.isFinite(difficultyRaw) && difficultyRaw > 0)
+      ? difficultyRaw
+      : compactBitsToDifficulty(bits);
+    if (!Number.isFinite(difficulty) || difficulty <= 0) continue;
+
+    out.push({
+      t: Math.max(0, Math.floor(Number(sample.t) || 0)),
+      height: Math.max(0, Math.floor(Number(sample.height) || 0)),
+      bits,
+      difficulty
+    });
+  }
+  return out.length > MAX_DIFFICULTY_SAMPLES ? out.slice(-MAX_DIFFICULTY_SAMPLES) : out;
+}
+
+function applyDifficultyObservatoryStats(stats, samplesInput) {
+  if (!stats || typeof stats !== "object") return;
+  const samples = sanitizeRecentDifficultySamplesForRuntime(samplesInput);
+  stats.recentDifficultySamples = samples;
+  if (samples.length === 0) {
+    stats.currentDifficulty = 0;
+    stats.currentDifficultyBits = null;
+    stats.currentDifficultyHeight = 0;
+    stats.difficultyTrend = "flat";
+    stats.difficultyTrendChangePct = 0;
+    stats.difficultyTrendWindow = 0;
+    stats.difficultyLastUpdateAt = 0;
+    return;
+  }
+
+  const current = samples[samples.length - 1];
+  stats.currentDifficulty = current.difficulty;
+  stats.currentDifficultyBits = current.bits;
+  stats.currentDifficultyHeight = current.height;
+  stats.difficultyLastUpdateAt = current.t;
+
+  const windowSize = Math.max(2, Math.min(DIFFICULTY_TREND_WINDOW, samples.length));
+  const baseline = samples[samples.length - windowSize];
+  const baselineDiff = Number(baseline && baseline.difficulty ? baseline.difficulty : 0);
+  const currentDiff = Number(current.difficulty || 0);
+  const changePct = baselineDiff > 0
+    ? ((currentDiff - baselineDiff) / baselineDiff) * 100
+    : 0;
+  stats.difficultyTrendWindow = windowSize;
+  stats.difficultyTrendChangePct = Math.round(changePct * 100) / 100;
+  stats.difficultyTrend = classifyDifficultyTrend(changePct);
+}
+
+function classifyDifficultyTrend(changePct) {
+  if (changePct > DIFFICULTY_TREND_EPSILON_PCT) return "rising";
+  if (changePct < -DIFFICULTY_TREND_EPSILON_PCT) return "falling";
+  return "flat";
 }
 
 function normalizeBlockStatus(status) {

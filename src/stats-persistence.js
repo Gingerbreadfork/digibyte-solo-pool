@@ -338,7 +338,10 @@ function makeSnapshot(stats, recentSharesMax) {
     stats: Object.assign(
       {},
       makeCompactStats(stats),
-      { recentShares: sanitizeRecentShares(stats && stats.recentShares, recentSharesMax) }
+      {
+        recentShares: sanitizeRecentShares(stats && stats.recentShares, recentSharesMax),
+        recentDifficultySamples: sanitizeRecentDifficultySamples(stats && stats.recentDifficultySamples)
+      }
     )
   };
 }
@@ -366,6 +369,7 @@ function makeCompactStats(stats) {
 function applyFullStats(target, src, recentSharesMax) {
   applyCompactStats(target, src);
   target.recentShares = sanitizeRecentShares(src && src.recentShares, recentSharesMax);
+  target.recentDifficultySamples = sanitizeRecentDifficultySamples(src && src.recentDifficultySamples);
 }
 
 function applyCompactStats(target, src) {
@@ -412,6 +416,24 @@ function sanitizeRecentShares(input, maxItems) {
   return out;
 }
 
+function sanitizeRecentDifficultySamples(input) {
+  if (!Array.isArray(input)) return [];
+  const sliced = input.slice(-360);
+  const out = [];
+  for (let i = 0; i < sliced.length; i += 1) {
+    const sample = sliced[i] || {};
+    const bits = sanitizeString(sample.bits, 8);
+    if (!bits) continue;
+    out.push({
+      t: sanitizeNumber(sample.t),
+      height: sanitizeNumber(sample.height),
+      bits,
+      difficulty: sanitizePositiveFloat(sample.difficulty)
+    });
+  }
+  return out;
+}
+
 function sanitizeRecentBlocks(input, maxItems) {
   if (!Array.isArray(input)) return [];
   const safeMax = Math.max(1, Number(maxItems) || MAX_RECENT_BLOCKS);
@@ -451,6 +473,12 @@ function sanitizeNumber(value) {
   const n = Number(value);
   if (!Number.isFinite(n) || n < 0) return 0;
   return Math.floor(n);
+}
+
+function sanitizePositiveFloat(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n < 0) return 0;
+  return n;
 }
 
 function sanitizeString(value, maxLen) {

@@ -102,6 +102,8 @@ function loadConfig() {
     blockStatusCheckMs: toInt(process.env.BLOCK_STATUS_CHECK_MS, 30000),
 
     debugShareValidation: toBool(process.env.DEBUG_SHARE_VALIDATION, false),
+    logNewJobs: toBool(process.env.LOG_NEW_JOBS, false),
+    logPoolStatsSnapshot: toBool(process.env.LOG_POOL_STATS_SNAPSHOT, false),
     logLevel: process.env.LOG_LEVEL || "info"
   };
 

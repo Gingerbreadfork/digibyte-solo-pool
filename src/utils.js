@@ -142,6 +142,16 @@ function compactBitsToTarget(bitsHex) {
   return mantissa << BigInt(8 * (exponent - 3));
 }
 
+function compactBitsToDifficulty(bitsHex) {
+  const bits = normalizeHex(bitsHex).padStart(8, "0");
+  const exponent = Number.parseInt(bits.slice(0, 2), 16);
+  const mantissa = Number.parseInt(bits.slice(2), 16);
+  if (!Number.isFinite(exponent) || !Number.isFinite(mantissa) || mantissa <= 0) {
+    return 0;
+  }
+  return (0x00ffff / mantissa) * (2 ** (8 * (0x1d - exponent)));
+}
+
 function parseDecimalToFraction(input) {
   const str = String(input).trim();
   if (!/^\d+(\.\d+)?$/.test(str)) {
@@ -243,6 +253,7 @@ module.exports = {
   bip34HeightPush,
   doubleSha256,
   compactBitsToTarget,
+  compactBitsToDifficulty,
   difficultyToTarget,
   bufferToBigIntLE,
   toFixedHexU32,
