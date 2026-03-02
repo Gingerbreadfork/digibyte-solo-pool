@@ -3157,6 +3157,13 @@ function renderDashboardHtml() {
         const lastShareAge = w.lastShareAt > 0 ? fmtAgeMs(now - w.lastShareAt) : 'never';
         const totalWorkerShares = w.acceptedShares + w.rejectedShares;
         const efficiency = totalWorkerShares > 0 ? (w.acceptedShares / totalWorkerShares) * 100 : 0;
+        const submitAckEmaMs = Math.max(0, safeNum(w.submitAckEmaMs, 0));
+        const rejectRateEma = Math.max(0, safeNum(w.rejectRateEma, 0));
+        const versionRollingState = w.versionRollingEnabled
+          ? (w.versionRollingSliced ? 'sliced' : 'full')
+          : 'off';
+        const prevhashMode = String(w.prevhashMode || '-');
+        const extranonceRotations = Math.max(0, safeNum(w.extranonceRotations, 0));
 
         // Get diagnostic info
         const tracker = workerHashrateTracker.get(w.name);
@@ -3171,7 +3178,7 @@ function renderDashboardHtml() {
           }
           avgTimePerShare = totalShares > 0 ? (totalTime / totalShares / 1000).toFixed(2) : 0;
         }
-        const debugInfo = \`Difficulty: \${w.difficulty} | Shares: \${w.acceptedShares} | Samples: \${sampleCount} | Avg time/share: \${avgTimePerShare}s | Calculated: \${fmtHashrate(workerHashrate)}\`;
+        const debugInfo = \`Difficulty: \${w.difficulty} | Shares: \${w.acceptedShares} | Samples: \${sampleCount} | Avg time/share: \${avgTimePerShare}s | Calculated: \${fmtHashrate(workerHashrate)} | Ack EMA: \${Math.round(submitAckEmaMs)}ms | Reject EMA: \${rejectRateEma.toFixed(2)}% | VR: \${versionRollingState} | Prevhash: \${prevhashMode}\`;
 
         html += \`
           <div class="worker-item" title="\${debugInfo}">
@@ -3206,6 +3213,26 @@ function renderDashboardHtml() {
               <div class="worker-stat">
                 <span class="k">Agent</span>
                 <span class="v" title="\${escapeHtml(w.userAgent)}">\${escapeHtml(w.userAgent.split('/')[0] || '-')}</span>
+              </div>
+              <div class="worker-stat">
+                <span class="k">Ack EMA</span>
+                <span class="v">\${Math.round(submitAckEmaMs)} ms</span>
+              </div>
+              <div class="worker-stat">
+                <span class="k">Reject EMA</span>
+                <span class="v">\${rejectRateEma.toFixed(2)}%</span>
+              </div>
+              <div class="worker-stat">
+                <span class="k">Version Roll</span>
+                <span class="v">\${versionRollingState}</span>
+              </div>
+              <div class="worker-stat">
+                <span class="k">Prevhash</span>
+                <span class="v">\${escapeHtml(prevhashMode)}</span>
+              </div>
+              <div class="worker-stat">
+                <span class="k">EN Rotations</span>
+                <span class="v">\${fmtInt(extranonceRotations)}</span>
               </div>
             </div>
           </div>

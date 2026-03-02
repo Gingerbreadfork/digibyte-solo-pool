@@ -122,7 +122,13 @@ class StratumServer extends EventEmitter {
           difficulty: c.difficultyNumber,
           lastShareAt: c.lastAcceptedShareAt || 0,
           avgShareIntervalMs: c.avgAcceptedShareIntervalMs || 0,
-          userAgent: c.userAgent || ""
+          userAgent: c.userAgent || "",
+          submitAckEmaMs: c.submitAckEmaMs || 0,
+          rejectRateEma: Math.round((c.submitRejectRateEma || 0) * 100 * 100) / 100,
+          versionRollingEnabled: Boolean(c.versionRollingEnabled),
+          versionRollingSliced: Boolean(c.versionRollingSliceActive),
+          extranonceRotations: c.extranonceRotateCount || 0,
+          prevhashMode: c.prevhashMode
         });
       }
     }
