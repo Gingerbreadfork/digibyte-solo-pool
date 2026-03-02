@@ -8,7 +8,8 @@ const {
   nowMs,
   formatPrevhashForStratum,
   normalizeHex,
-  toFixedHexU32
+  toFixedHexU32,
+  compactBitsToDifficulty
 } = require("./utils");
 
 const STRATUM_ERRORS = {
@@ -21,6 +22,7 @@ const STRATUM_ERRORS = {
 };
 const EMPTY_BUFFER = Buffer.alloc(0);
 const MAX_RECENT_SHARE_SAMPLES = 240;
+const MAX_TOP_SHARES = 20;
 const MIN_SLICING_COMPATIBLE_MINERS = 2;
 
 /**
@@ -54,6 +56,10 @@ class StratumServer extends EventEmitter {
     if (!Array.isArray(this.stats.recentShares)) {
       this.stats.recentShares = [];
     }
+    if (!Array.isArray(this.stats.topShares)) {
+      this.stats.topShares = [];
+    }
+    this.stats.expectedBlocks = sanitizePositiveFloat(this.stats.expectedBlocks);
   }
 
   start() {
@@ -563,6 +569,7 @@ class StratumServer extends EventEmitter {
       this.stats.bestShareWorker = client.workerName;
       this.stats.bestShareAt = acceptedAt;
     }
+    this.updateShareSpectrometer(client, share, acceptedAt);
 
     client.acceptedShares += 1;
     client.lowDiffStreak = 0;
@@ -1425,6 +1432,7 @@ class StratumServer extends EventEmitter {
       jobId: share.job.jobId,
       difficulty: Number(share.assignedDifficulty || client.difficulty),
       shareDifficulty: Number(share.shareDifficulty || 0),
+      expectedBlocks: sanitizePositiveFloat(this.stats.expectedBlocks),
       blockCandidate: Boolean(share.isBlockCandidate),
       shareHash: share.shareHashHex
     };
@@ -1538,6 +1546,31 @@ class StratumServer extends EventEmitter {
     if (job) {
       this.pushJob(client, job, { cleanJobs: true });
     }
+  }
+
+  updateShareSpectrometer(client, share, acceptedAt) {
+    const shareDiff = sanitizePositiveFloat(share && share.shareDifficulty);
+    if (shareDiff <= 0) return;
+
+    const networkDiff = resolveNetworkDifficultyFromShare(share, this.stats);
+    let expectedDelta = 0;
+    if (networkDiff > 0) {
+      expectedDelta = shareDiff / networkDiff;
+      if (Number.isFinite(expectedDelta) && expectedDelta > 0) {
+        this.stats.expectedBlocks = sanitizePositiveFloat(this.stats.expectedBlocks) + expectedDelta;
+      }
+    }
+
+    const entry = {
+      t: Math.max(0, Math.floor(Number(acceptedAt) || 0)),
+      worker: sanitizeWorkerName(client && client.workerName),
+      shareDifficulty: shareDiff,
+      networkDifficulty: networkDiff,
+      expectedDelta: sanitizePositiveFloat(expectedDelta),
+      pctOfBlock: networkDiff > 0 ? sanitizePositiveFloat(shareDiff / networkDiff) : 0,
+      shareHash: sanitizeShareHash(share && share.shareHashHex)
+    };
+    rememberTopShare(this.stats, entry, MAX_TOP_SHARES);
   }
 
   checkRateLimit(ip) {
@@ -1654,6 +1687,54 @@ function buildNotifyPayload(job, prevhashNotifyHex, cleanJobs) {
       cleanJobs
     ]
   };
+}
+
+function resolveNetworkDifficultyFromShare(share, stats) {
+  if (share && share.job) {
+    const bitsHex = (typeof share.job.bitsHex === "string" && share.job.bitsHex)
+      || (share.job.template && typeof share.job.template.bits === "string" ? share.job.template.bits : "");
+    if (bitsHex) {
+      const fromBits = sanitizePositiveFloat(compactBitsToDifficulty(bitsHex));
+      if (fromBits > 0) return fromBits;
+    }
+  }
+  return sanitizePositiveFloat(stats && stats.currentDifficulty);
+}
+
+function rememberTopShare(stats, entry, maxItems) {
+  if (!stats || typeof stats !== "object" || !entry || typeof entry !== "object") return;
+  const list = Array.isArray(stats.topShares) ? stats.topShares : [];
+  list.push(entry);
+  list.sort((a, b) => {
+    const diffA = sanitizePositiveFloat(a && a.shareDifficulty);
+    const diffB = sanitizePositiveFloat(b && b.shareDifficulty);
+    if (diffA !== diffB) return diffB - diffA;
+    const timeA = Math.max(0, Number(a && a.t) || 0);
+    const timeB = Math.max(0, Number(b && b.t) || 0);
+    return timeB - timeA;
+  });
+  const keep = Math.max(1, Number(maxItems || 20));
+  if (list.length > keep) {
+    list.length = keep;
+  }
+  stats.topShares = list;
+}
+
+function sanitizePositiveFloat(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n < 0) return 0;
+  return n;
+}
+
+function sanitizeWorkerName(value) {
+  const str = String(value || "").trim();
+  if (!str) return "unknown";
+  return str.slice(0, 96);
+}
+
+function sanitizeShareHash(value) {
+  const str = String(value || "").trim();
+  return str ? str.slice(0, 128) : "";
 }
 
 module.exports = { StratumServer };

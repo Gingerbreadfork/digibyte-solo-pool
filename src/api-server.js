@@ -205,6 +205,7 @@ class ApiServer {
       pushMetric(lines, "pool_shares_stale_total", this.stats.sharesStale);
       pushMetric(lines, "pool_shares_duplicate_total", this.stats.sharesDuplicate);
       pushMetric(lines, "pool_shares_lowdiff_total", this.stats.sharesLowDiff);
+      pushMetric(lines, "pool_expected_blocks_accumulated", this.stats.expectedBlocks || 0);
       pushMetric(lines, "pool_blocks_found_total", this.stats.blocksFound);
       pushMetric(lines, "pool_blocks_rejected_total", this.stats.blocksRejected);
       pushMetric(lines, "pool_blocks_orphaned_total", this.stats.blocksOrphaned || 0);
@@ -364,6 +365,10 @@ class ApiServer {
         worker: this.stats.bestShareWorker,
         age: this.stats.bestShareAt ? Math.floor((Date.now() - this.stats.bestShareAt) / 1000) + "s ago" : "never"
       } : null,
+      spectrometer: {
+        expectedBlocks: Number(this.stats.expectedBlocks || 0),
+        topSharesTracked: Array.isArray(this.stats.topShares) ? this.stats.topShares.length : 0
+      },
       hashrate: hashrateEstimate,
       height: this.stats.currentHeight
     });
@@ -380,6 +385,7 @@ class ApiServer {
     const blocksOrphaned = this.stats.blocksOrphaned || 0;
     const totalRewardSats = this.stats.totalRewardSats || 0;
     const recentBlocks = Array.isArray(this.stats.recentBlocks) ? this.stats.recentBlocks.slice(0, 10) : [];
+    const topShares = Array.isArray(this.stats.topShares) ? this.stats.topShares.slice(0, 20) : [];
 
     // Reset session stats
     this.stats.templatesFetched = 0;
@@ -389,6 +395,7 @@ class ApiServer {
     this.stats.sharesStale = 0;
     this.stats.sharesDuplicate = 0;
     this.stats.sharesLowDiff = 0;
+    this.stats.expectedBlocks = 0;
     this.stats.blocksRejected = 0;
     this.stats.lastTemplateAt = 0;
     this.stats.lastBroadcastAt = 0;
@@ -406,6 +413,7 @@ class ApiServer {
     this.stats.blocksOrphaned = blocksOrphaned;
     this.stats.totalRewardSats = totalRewardSats;
     this.stats.recentBlocks = recentBlocks;
+    this.stats.topShares = topShares;
 
     // Reset pool start time for session stats
     this.startedAt = Date.now();

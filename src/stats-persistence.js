@@ -36,6 +36,10 @@ const NUMERIC_FIELDS = [
   "blockMonitorErrors"
 ];
 
+const FLOAT_FIELDS = [
+  "expectedBlocks"
+];
+
 const STRING_OR_NULL_FIELDS = [
   "currentNetworkBits",
   "lastTemplateSource",
@@ -358,10 +362,14 @@ function makeCompactStats(stats) {
   for (const field of NUMERIC_FIELDS) {
     compact[field] = sanitizeNumber(src[field]);
   }
+  for (const field of FLOAT_FIELDS) {
+    compact[field] = sanitizePositiveFloat(src[field]);
+  }
   for (const field of STRING_OR_NULL_FIELDS) {
     compact[field] = sanitizeStringOrNull(src[field], 256);
   }
   compact.recentBlocks = sanitizeRecentBlocks(src.recentBlocks, MAX_RECENT_BLOCKS);
+  compact.topShares = sanitizeTopShares(src.topShares, 20);
 
   return compact;
 }
@@ -377,10 +385,14 @@ function applyCompactStats(target, src) {
   for (const field of NUMERIC_FIELDS) {
     target[field] = compact[field];
   }
+  for (const field of FLOAT_FIELDS) {
+    target[field] = compact[field];
+  }
   for (const field of STRING_OR_NULL_FIELDS) {
     target[field] = compact[field];
   }
   target.recentBlocks = compact.recentBlocks;
+  target.topShares = compact.topShares;
 }
 
 function sanitizeCompactStats(src) {
@@ -389,10 +401,14 @@ function sanitizeCompactStats(src) {
   for (const field of NUMERIC_FIELDS) {
     out[field] = sanitizeNumber(obj[field]);
   }
+  for (const field of FLOAT_FIELDS) {
+    out[field] = sanitizePositiveFloat(obj[field]);
+  }
   for (const field of STRING_OR_NULL_FIELDS) {
     out[field] = sanitizeStringOrNull(obj[field], 256);
   }
   out.recentBlocks = sanitizeRecentBlocks(obj.recentBlocks, MAX_RECENT_BLOCKS);
+  out.topShares = sanitizeTopShares(obj.topShares, 20);
   return out;
 }
 
@@ -431,6 +447,46 @@ function sanitizeRecentDifficultySamples(input) {
       difficulty: sanitizePositiveFloat(sample.difficulty)
     });
   }
+  return out;
+}
+
+function sanitizeTopShares(input, maxItems) {
+  if (!Array.isArray(input)) return [];
+  const safeMax = Math.max(1, Number(maxItems) || 20);
+  const out = [];
+  const seen = new Set();
+
+  for (let i = 0; i < input.length; i += 1) {
+    if (out.length >= safeMax) break;
+    const item = input[i] || {};
+    const shareDifficulty = sanitizePositiveFloat(item.shareDifficulty);
+    if (shareDifficulty <= 0) continue;
+    const t = sanitizeNumber(item.t);
+    const worker = sanitizeString(item.worker || "unknown", 96);
+    const networkDifficulty = sanitizePositiveFloat(item.networkDifficulty);
+    const expectedDelta = sanitizePositiveFloat(item.expectedDelta);
+    const pctOfBlock = sanitizePositiveFloat(item.pctOfBlock);
+    const shareHash = sanitizeString(item.shareHash || "", 128);
+    const dedupeKey = shareHash
+      ? `h:${shareHash}`
+      : `d:${shareDifficulty.toFixed(8)}:${t}:${worker}`;
+    if (seen.has(dedupeKey)) continue;
+    seen.add(dedupeKey);
+    out.push({
+      t,
+      worker,
+      shareDifficulty,
+      networkDifficulty,
+      expectedDelta,
+      pctOfBlock,
+      shareHash
+    });
+  }
+
+  out.sort((a, b) => {
+    if (b.shareDifficulty !== a.shareDifficulty) return b.shareDifficulty - a.shareDifficulty;
+    return b.t - a.t;
+  });
   return out;
 }
 

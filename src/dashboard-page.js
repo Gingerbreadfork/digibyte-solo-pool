@@ -1089,6 +1089,131 @@ function renderDashboardHtml() {
       white-space: nowrap;
     }
 
+    .spectrometer-progress {
+      position: relative;
+      width: 100%;
+      height: 8px;
+      border-radius: 999px;
+      border: 1px solid var(--line-soft);
+      background: rgba(255, 255, 255, 0.05);
+      overflow: hidden;
+      margin-top: 4px;
+    }
+
+    .spectrometer-progress-bar {
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 0%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, var(--teal), var(--cyan));
+      box-shadow: 0 0 10px rgba(86, 233, 207, 0.35);
+      transition: width 0.28s ease;
+    }
+
+    .spectrometer-list {
+      border: 1px solid var(--line-soft);
+      border-radius: 12px;
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.025), rgba(255, 255, 255, 0.01)),
+        rgba(12, 12, 12, 0.72);
+      padding: 10px;
+      display: grid;
+      gap: 8px;
+      max-height: 260px;
+      overflow-y: auto;
+    }
+
+    .spectrometer-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      border-bottom: 1px solid var(--line-soft);
+      padding-bottom: 8px;
+    }
+
+    .spectrometer-title {
+      font-size: 10px;
+      letter-spacing: 0.11em;
+      text-transform: uppercase;
+      color: var(--ink-2);
+      font-weight: 700;
+    }
+
+    .spectrometer-meta {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--ink-1);
+    }
+
+    .spectrometer-rows {
+      display: grid;
+      gap: 7px;
+      align-content: start;
+    }
+
+    .spectrometer-row {
+      border: 1px solid var(--line-soft);
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.02);
+      padding: 7px 8px;
+      display: grid;
+      gap: 4px;
+    }
+
+    .spectrometer-row-main {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    .spectrometer-rank {
+      font-family: var(--mono);
+      color: var(--ink-2);
+      font-size: 11px;
+      min-width: 24px;
+    }
+
+    .spectrometer-pct {
+      font-family: var(--mono);
+      color: var(--cyan);
+      font-size: 12px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .spectrometer-row-sub {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--ink-2);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .spectrometer-empty {
+      color: var(--ink-2);
+      font-size: 12px;
+      text-align: center;
+      padding: 8px 4px 2px;
+    }
+
+    [data-theme="light"] .spectrometer-list {
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(247, 239, 227, 0.84)),
+        rgba(255, 255, 255, 0.85);
+      border-color: rgba(42, 60, 85, 0.13);
+    }
+
+    [data-theme="light"] .spectrometer-row {
+      background: rgba(255, 255, 255, 0.82);
+      border-color: rgba(42, 60, 85, 0.11);
+    }
+
     .worker-list {
       display: grid;
       gap: 10px;
@@ -1873,6 +1998,19 @@ function renderDashboardHtml() {
             <div class="luck-hint" id="ttb-hint">Based on current hashrate</div>
           </div>
           <div class="luck-item">
+            <div class="luck-label">Expected Blocks (EB)</div>
+            <div class="luck-value" id="expected-blocks">-</div>
+            <div class="luck-hint" id="expected-blocks-hint">No accepted share work yet</div>
+            <div class="spectrometer-progress">
+              <div class="spectrometer-progress-bar" id="expected-blocks-bar"></div>
+            </div>
+          </div>
+          <div class="luck-item">
+            <div class="luck-label">Poisson Variance</div>
+            <div class="luck-value" id="variance-probability">-</div>
+            <div class="luck-hint" id="variance-hint">Waiting for expected blocks</div>
+          </div>
+          <div class="luck-item">
             <div class="luck-label">SHA256d Difficulty</div>
             <div class="luck-value" id="network-difficulty">-</div>
             <div class="luck-hint" id="network-difficulty-hint">Waiting for templates</div>
@@ -1886,6 +2024,15 @@ function renderDashboardHtml() {
             <div class="luck-label">Luck Meter</div>
             <div class="luck-value" id="luck-meter">-</div>
             <div class="luck-hint" id="luck-meter-hint">Monitoring difficulty changes</div>
+          </div>
+        </div>
+        <div class="spectrometer-list">
+          <div class="spectrometer-head">
+            <div class="spectrometer-title">Share Spectrometer</div>
+            <div class="spectrometer-meta" id="top-shares-meta">top 20</div>
+          </div>
+          <div class="spectrometer-rows" id="top-shares-list">
+            <div class="spectrometer-empty">No accepted shares yet</div>
           </div>
         </div>
       </article>
@@ -1994,6 +2141,11 @@ function renderDashboardHtml() {
     const MAX_TIMELINE_ITEMS = 60;
     const MAX_BLOCKS_HISTORY = 10;
     const DEFAULT_ADDRESS_EXPLORER_BASE = "https://digiexplorer.info/address/";
+    const SHARE_TIME_FORMATTER = new Intl.DateTimeFormat(undefined, {
+      weekday: "long",
+      hour: "numeric",
+      minute: "2-digit"
+    });
     const d = document;
 
     // Load preferences
@@ -2086,6 +2238,13 @@ function renderDashboardHtml() {
       bestShareAlltimeHint: d.getElementById("best-share-alltime-hint"),
       ttbEstimate: d.getElementById("ttb-estimate"),
       ttbHint: d.getElementById("ttb-hint"),
+      expectedBlocks: d.getElementById("expected-blocks"),
+      expectedBlocksHint: d.getElementById("expected-blocks-hint"),
+      expectedBlocksBar: d.getElementById("expected-blocks-bar"),
+      varianceProbability: d.getElementById("variance-probability"),
+      varianceHint: d.getElementById("variance-hint"),
+      topSharesMeta: d.getElementById("top-shares-meta"),
+      topSharesList: d.getElementById("top-shares-list"),
       networkDifficulty: d.getElementById("network-difficulty"),
       networkDifficultyHint: d.getElementById("network-difficulty-hint"),
       difficultyTrend: d.getElementById("difficulty-trend"),
@@ -2666,6 +2825,19 @@ function renderDashboardHtml() {
       return sign + n.toFixed(2) + "%";
     }
 
+    function fmtExpectedBlocks(value) {
+      const n = safeNum(value, 0);
+      if (n <= 0) return "0.000";
+      if (n < 1) return n.toFixed(3);
+      if (n < 10) return n.toFixed(2);
+      return n.toFixed(1);
+    }
+
+    function fmtPctFromRatio(ratio) {
+      const n = safeNum(ratio, 0);
+      return (n * 100).toFixed(n < 0.1 ? 2 : 1) + "%";
+    }
+
     function normalizeDifficultyTrend(value) {
       const v = String(value || "").toLowerCase();
       if (v === "rising" || v === "falling") return v;
@@ -2928,6 +3100,8 @@ function renderDashboardHtml() {
           bestShareDifficulty: safeNum(stats.bestShareDifficulty, 0),
           bestShareWorker: stats.bestShareWorker || null,
           bestShareAt: safeNum(stats.bestShareAt, 0),
+          expectedBlocks: safeNum(stats.expectedBlocks, 0),
+          topShares: sanitizeTopShares(stats.topShares, 20),
           networkDifficulty: safeNum(difficulty.current, 0),
           difficultyTrend: normalizeDifficultyTrend(difficulty.trend),
           difficultyChangePct: safeNum(difficulty.changePct, 0),
@@ -3057,6 +3231,45 @@ function renderDashboardHtml() {
         seenHashes.add(normalized.hash);
         out.push(normalized);
       }
+      return out;
+    }
+
+    function sanitizeTopShares(input, maxItems) {
+      if (!Array.isArray(input)) return [];
+      const out = [];
+      const seenKeys = new Set();
+      const limit = Math.max(1, Math.floor(safeNum(maxItems, 20)));
+
+      for (let i = 0; i < input.length; i += 1) {
+        if (out.length >= limit) break;
+        const row = input[i] || {};
+        const shareDifficulty = safeNum(row.shareDifficulty, 0);
+        if (!(shareDifficulty > 0)) continue;
+        const t = Math.max(0, Math.floor(safeNum(row.t, 0)));
+        const worker = String(row.worker || "unknown").trim().slice(0, 96) || "unknown";
+        const networkDifficulty = Math.max(0, safeNum(row.networkDifficulty, 0));
+        const pctOfBlock = Math.max(0, safeNum(row.pctOfBlock, networkDifficulty > 0 ? (shareDifficulty / networkDifficulty) : 0));
+        const expectedDelta = Math.max(0, safeNum(row.expectedDelta, pctOfBlock));
+        const shareHash = String(row.shareHash || "").trim().slice(0, 128);
+        const key = shareHash || [shareDifficulty.toFixed(8), t, worker].join(":");
+        if (seenKeys.has(key)) continue;
+        seenKeys.add(key);
+        out.push({
+          t,
+          worker,
+          shareDifficulty,
+          networkDifficulty,
+          pctOfBlock,
+          expectedDelta,
+          shareHash
+        });
+      }
+
+      out.sort((a, b) => {
+        if (b.shareDifficulty !== a.shareDifficulty) return b.shareDifficulty - a.shareDifficulty;
+        return b.t - a.t;
+      });
+      if (out.length > limit) out.length = limit;
       return out;
     }
 
@@ -3204,6 +3417,7 @@ function renderDashboardHtml() {
       renderWorkerList(workers);
       renderTimeline();
       renderLuckStats(j, d0, diff);
+      renderShareSpectrometer(d0, diff);
       renderBlocksList();
       renderHealthIndicators(s, now, workers.length);
     }
@@ -3502,6 +3716,175 @@ function renderDashboardHtml() {
         text(refs.ttbEstimate, '-');
         text(refs.ttbHint, 'Waiting for hashrate data');
       }
+    }
+
+    function renderShareSpectrometer(derived, difficulty) {
+      const expectedBlocks = Math.max(0, safeNum(derived && derived.expectedBlocks, 0));
+      text(refs.expectedBlocks, fmtExpectedBlocks(expectedBlocks));
+
+      if (refs.expectedBlocksBar) {
+        const firstBlockProgressPct = Math.max(0, Math.min(100, expectedBlocks * 100));
+        refs.expectedBlocksBar.style.width = firstBlockProgressPct.toFixed(2) + "%";
+      }
+
+      if (expectedBlocks > 0) {
+        const firstPct = Math.max(0, Math.min(100, expectedBlocks * 100));
+        if (expectedBlocks < 1) {
+          text(
+            refs.expectedBlocksHint,
+            fmtPctFromRatio(expectedBlocks) + " of the statistical work toward 1 block"
+          );
+        } else {
+          const nextPct = ((expectedBlocks % 1) * 100);
+          text(
+            refs.expectedBlocksHint,
+            firstPct.toFixed(0) + "% of first block complete, " + nextPct.toFixed(1) + "% toward next"
+          );
+        }
+      } else {
+        text(refs.expectedBlocksHint, "No accepted share work yet");
+      }
+
+      const observedBlocks = Math.max(0, Math.floor(safeNum(derived && derived.blocksFound, 0)));
+      if (expectedBlocks > 0) {
+        const pZero = poissonPmf(0, expectedBlocks);
+        const pAtMostObserved = poissonCdf(observedBlocks, expectedBlocks);
+        const ci68 = poissonCentralInterval(expectedBlocks, 0.68);
+        const ci95 = poissonCentralInterval(expectedBlocks, 0.95);
+        text(refs.luckMeta, "EB " + fmtExpectedBlocks(expectedBlocks) + " • P(0) " + fmtPctFromRatio(pZero));
+
+        if (observedBlocks === 0) {
+          text(refs.varianceProbability, "P(0 blocks) " + fmtPctFromRatio(pZero));
+        } else {
+          text(refs.varianceProbability, "P(<= " + fmtInt(observedBlocks) + " blocks) " + fmtPctFromRatio(pAtMostObserved));
+        }
+        text(
+          refs.varianceHint,
+          "Poisson 68% " + ci68.lo + "-" + ci68.hi + " • 95% " + ci95.lo + "-" + ci95.hi + " blocks"
+        );
+      } else {
+        text(refs.luckMeta, "progress to block");
+        text(refs.varianceProbability, "-");
+        text(refs.varianceHint, "Waiting for expected blocks");
+      }
+
+      const topShares = sanitizeTopShares(derived && derived.topShares, 20);
+      text(refs.topSharesMeta, "top " + fmtInt(topShares.length) + " / 20");
+      if (!topShares.length) {
+        refs.topSharesList.innerHTML = '<div class="spectrometer-empty">No accepted shares yet</div>';
+        return;
+      }
+
+      let html = "";
+      for (let i = 0; i < topShares.length; i += 1) {
+        const share = topShares[i];
+        const pct = share.pctOfBlock > 0
+          ? share.pctOfBlock
+          : (share.networkDifficulty > 0 ? (share.shareDifficulty / share.networkDifficulty) : 0);
+        const whenText = share.t > 0 ? SHARE_TIME_FORMATTER.format(new Date(share.t)) : "unknown time";
+        const worker = share.worker || "unknown";
+        const hashShort = share.shareHash
+          ? (share.shareHash.slice(0, 8) + "..." + share.shareHash.slice(-8))
+          : "no-hash";
+        html += \`
+          <div class="spectrometer-row">
+            <div class="spectrometer-row-main">
+              <span class="spectrometer-rank">#\${i + 1}</span>
+              <span class="spectrometer-pct">\${fmtPctFromRatio(pct)} of block</span>
+            </div>
+            <div class="spectrometer-row-sub">\${escapeHtml(worker)} • \${escapeHtml(whenText)} • diff \${fmtDifficulty(share.shareDifficulty)} • \${escapeHtml(hashShort)}</div>
+          </div>
+        \`;
+      }
+      refs.topSharesList.innerHTML = html;
+    }
+
+    function poissonPmf(k, lambda) {
+      const safeK = Math.max(0, Math.floor(safeNum(k, 0)));
+      const safeLambda = Math.max(0, safeNum(lambda, 0));
+      if (safeLambda <= 0) return safeK === 0 ? 1 : 0;
+      if (safeLambda > 700) {
+        // For very large lambda, PMF(0) underflows; this approximation is adequate for UI messaging.
+        if (safeK === 0) return 0;
+      }
+      let p = Math.exp(-safeLambda);
+      for (let i = 1; i <= safeK; i += 1) {
+        p *= (safeLambda / i);
+      }
+      return Math.max(0, Math.min(1, p));
+    }
+
+    function poissonCdf(k, lambda) {
+      const safeK = Math.max(0, Math.floor(safeNum(k, 0)));
+      const safeLambda = Math.max(0, safeNum(lambda, 0));
+      if (safeLambda <= 0) return 1;
+      if (safeLambda > 120) {
+        const z = (safeK + 0.5 - safeLambda) / Math.sqrt(safeLambda);
+        return Math.max(0, Math.min(1, normalCdf(z)));
+      }
+      let p = Math.exp(-safeLambda);
+      let cdf = p;
+      for (let i = 1; i <= safeK; i += 1) {
+        p *= (safeLambda / i);
+        cdf += p;
+      }
+      return Math.max(0, Math.min(1, cdf));
+    }
+
+    function poissonCentralInterval(lambda, confidence) {
+      const safeLambda = Math.max(0, safeNum(lambda, 0));
+      const conf = Math.max(0.5, Math.min(0.999, safeNum(confidence, 0.95)));
+      if (safeLambda <= 0) return { lo: 0, hi: 0 };
+
+      if (safeLambda > 120) {
+        const z = approxZForConfidence(conf);
+        const sigma = Math.sqrt(safeLambda);
+        return {
+          lo: Math.max(0, Math.floor(safeLambda - (z * sigma))),
+          hi: Math.max(0, Math.ceil(safeLambda + (z * sigma)))
+        };
+      }
+
+      const tail = (1 - conf) / 2;
+      let k = 0;
+      let p = Math.exp(-safeLambda);
+      let cdf = p;
+      while (cdf < tail && k < 5000) {
+        k += 1;
+        p *= (safeLambda / k);
+        cdf += p;
+      }
+      const lo = k;
+
+      while (cdf < (1 - tail) && k < 5000) {
+        k += 1;
+        p *= (safeLambda / k);
+        cdf += p;
+      }
+      return { lo, hi: k };
+    }
+
+    function approxZForConfidence(confidence) {
+      if (confidence >= 0.995) return 2.81;
+      if (confidence >= 0.99) return 2.58;
+      if (confidence >= 0.98) return 2.33;
+      if (confidence >= 0.95) return 1.96;
+      if (confidence >= 0.9) return 1.64;
+      if (confidence >= 0.8) return 1.28;
+      return 1.0;
+    }
+
+    function normalCdf(z) {
+      const x = safeNum(z, 0) / Math.sqrt(2);
+      return 0.5 * (1 + erf(x));
+    }
+
+    function erf(x) {
+      const sign = x < 0 ? -1 : 1;
+      const ax = Math.abs(x);
+      const t = 1 / (1 + 0.3275911 * ax);
+      const y = 1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-ax * ax);
+      return sign * y;
     }
 
     function classifyLuckMeter(trend, changePct) {
