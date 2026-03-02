@@ -20,6 +20,7 @@ const {
 const { buildCoinbasePieces } = require("./coinbase-builder");
 const { buildCoinbaseMerkleBranches, computeMerkleRootFromBranches } = require("./merkle");
 const { buildBlockHeader, resolveShareVersionHex } = require("./share-crypto");
+const { ZmqHashblockSubscriber } = require("./zmq-hashblock-subscriber");
 
 const MAX_RECENT_BLOCKS = 10;
 const MAX_TX_ARTIFACT_CACHE = 8;
@@ -49,6 +50,10 @@ class JobManager extends EventEmitter {
     this.pollTimer = null;
     this.longpollPromise = null;
     this.lastLongpollSuccessAt = 0;
+    this.zmqHashblockSubscriber = null;
+    this.lastZmqHashblockAt = 0;
+    this.zmqTemplateRefreshPending = false;
+    this.zmqTemplateRefreshInFlight = null;
     this.prevhashEpochSeq = 0;
     this.templatePollFailureStreak = Math.max(0, Number(this.stats.templatePollFailureStreak || 0));
     this.lastTemplatePollFailureAt = 0;
@@ -78,6 +83,9 @@ class JobManager extends EventEmitter {
     await this.verifyNodePowAlgo();
     await this.refreshTemplate("startup");
     this.schedulePoll();
+    if (this.config.enableZmqHashblock) {
+      this.startZmqHashblockSubscriber();
+    }
     if (this.config.enableLongpoll) {
       this.startLongpollLoop();
     }
@@ -87,6 +95,11 @@ class JobManager extends EventEmitter {
   async stop() {
     this.running = false;
     this.speculativePrebuildSeq += 1;
+    this.zmqTemplateRefreshPending = false;
+    if (this.zmqHashblockSubscriber) {
+      this.zmqHashblockSubscriber.stop();
+      this.zmqHashblockSubscriber = null;
+    }
     if (this.pollTimer) {
       clearTimeout(this.pollTimer);
       this.pollTimer = null;
@@ -139,6 +152,63 @@ class JobManager extends EventEmitter {
     this.longpollPromise = loop();
   }
 
+  startZmqHashblockSubscriber() {
+    if (this.zmqHashblockSubscriber) return;
+    let subscriber;
+    try {
+      subscriber = new ZmqHashblockSubscriber(this.config, this.logger.child("zmq-hashblock"));
+    } catch (err) {
+      this.logger.error("Failed to initialize ZMQ hashblock subscriber", {
+        error: err.message,
+        endpoint: this.config.zmqHashblockEndpoint || null
+      });
+      return;
+    }
+
+    subscriber.on("hashblock", (evt) => {
+      if (!this.running) return;
+
+      this.lastZmqHashblockAt = Number(evt && evt.receivedAt) || nowMs();
+      this.stats.lastZmqHashblockAt = this.lastZmqHashblockAt;
+      this.stats.lastZmqHashblockHash = evt && evt.blockHashHex ? String(evt.blockHashHex) : null;
+      this.stats.lastZmqHashblockSeq = Number.isFinite(evt && evt.sequence)
+        ? Number(evt.sequence)
+        : null;
+      this.queueZmqTemplateRefresh();
+    });
+
+    subscriber.on("reconnect", () => {
+      this.stats.zmqHashblockReconnects = Math.max(0, Number(this.stats.zmqHashblockReconnects) || 0) + 1;
+    });
+
+    this.zmqHashblockSubscriber = subscriber;
+    subscriber.start();
+  }
+
+  queueZmqTemplateRefresh() {
+    this.zmqTemplateRefreshPending = true;
+    if (this.zmqTemplateRefreshInFlight) return;
+
+    const run = async () => {
+      while (this.running && this.zmqTemplateRefreshPending) {
+        this.zmqTemplateRefreshPending = false;
+        try {
+          await this.refreshTemplate("zmq-hashblock");
+        } catch (err) {
+          if (this.running) {
+            this.logger.warn("Template refresh failed after ZMQ hashblock signal", {
+              error: err.message
+            });
+          }
+        }
+      }
+    };
+
+    this.zmqTemplateRefreshInFlight = run().finally(() => {
+      this.zmqTemplateRefreshInFlight = null;
+    });
+  }
+
   nextPollDelayMs() {
     const baseMs = Math.max(250, Number(this.config.templatePollMs || 1000));
 
@@ -147,11 +217,15 @@ class JobManager extends EventEmitter {
       return Math.max(baseMs, backoffMs(this.templatePollFailureStreak, baseMs, 10000));
     }
 
-    if (!this.config.enableLongpoll) return baseMs;
+    const hasFastSignalChannel = Boolean(this.config.enableLongpoll || this.config.enableZmqHashblock);
+    if (!hasFastSignalChannel) return baseMs;
 
     const healthyPollMs = Math.max(baseMs, Number(this.config.templatePollMsLongpollHealthy || baseMs));
     const graceMs = Math.max(1000, Number(this.config.longpollHealthyGraceMs || 120000));
-    const lastSuccessAt = Number(this.lastLongpollSuccessAt || 0);
+    const lastSuccessAt = Math.max(
+      this.config.enableLongpoll ? Number(this.lastLongpollSuccessAt || 0) : 0,
+      this.config.enableZmqHashblock ? Number(this.lastZmqHashblockAt || 0) : 0
+    );
     if (lastSuccessAt > 0 && (nowMs() - lastSuccessAt) <= graceMs) {
       return healthyPollMs;
     }
@@ -422,7 +496,11 @@ class JobManager extends EventEmitter {
     const originalTxCount = countTemplateTransactions(template);
 
     let fastpathBroadcasted = false;
-    if (this.config.enableNewBlockFastpath && source === "longpoll" && isNewPrev) {
+    if (
+      this.config.enableNewBlockFastpath
+      && (source === "longpoll" || source === "zmq-hashblock")
+      && isNewPrev
+    ) {
       const fastTemplate = buildTruncatedTemplate(template, this.config.newBlockFastpathTxLimit);
       if (fastTemplate) {
         fastpathBroadcasted = true;

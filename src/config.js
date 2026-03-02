@@ -9,6 +9,9 @@ const {
 } = require("./utils");
 
 function loadConfig() {
+  const enableZmqHashblock = toBool(process.env.ENABLE_ZMQ_HASHBLOCK, true);
+  const enableLongpollDefault = enableZmqHashblock ? false : true;
+
   const cfg = {
     nodeRpcHost: process.env.NODE_RPC_HOST || "127.0.0.1",
     nodeRpcPort: toInt(process.env.NODE_RPC_PORT, 14022),
@@ -18,6 +21,10 @@ function loadConfig() {
     nodeRpcTimeoutMs: toInt(process.env.NODE_RPC_TIMEOUT_MS, 5000),
     nodeRpcLongpollTimeoutMs: toInt(process.env.NODE_RPC_LONGPOLL_TIMEOUT_MS, 90000),
     allowNodePowAlgoMismatch: toBool(process.env.ALLOW_NODE_POW_ALGO_MISMATCH, false),
+    enableZmqHashblock,
+    zmqHashblockEndpoint: process.env.ZMQ_HASHBLOCK_ENDPOINT || "tcp://127.0.0.1:28332",
+    zmqReconnectBaseMs: toInt(process.env.ZMQ_RECONNECT_BASE_MS, 250),
+    zmqReconnectMaxMs: toInt(process.env.ZMQ_RECONNECT_MAX_MS, 10000),
 
     stratumHost: process.env.STRATUM_HOST || "0.0.0.0",
     stratumPort: toInt(process.env.STRATUM_PORT, 3333),
@@ -77,7 +84,7 @@ function loadConfig() {
     enableSetExtranonceOrchestration: toBool(process.env.ENABLE_SET_EXTRANONCE_ORCHESTRATION, true),
     setExtranonceRotateCooldownMs: toInt(process.env.SET_EXTRANONCE_ROTATE_COOLDOWN_MS, 10000),
 
-    enableLongpoll: toBool(process.env.ENABLE_LONGPOLL, true),
+    enableLongpoll: toBool(process.env.ENABLE_LONGPOLL, enableLongpollDefault),
     templatePollMs: toInt(process.env.TEMPLATE_POLL_MS, 1000),
     templatePollMsLongpollHealthy: toInt(process.env.TEMPLATE_POLL_MS_LONGPOLL_HEALTHY, 500),
     longpollHealthyGraceMs: toInt(process.env.LONGPOLL_HEALTHY_GRACE_MS, 120000),
@@ -172,6 +179,30 @@ function loadConfig() {
   }
   if (cfg.nearCandidatePrewarmFactor < 2) {
     throw new Error("NEAR_CANDIDATE_PREWARM_FACTOR must be >= 2");
+  }
+  if (cfg.enableZmqHashblock && !String(cfg.zmqHashblockEndpoint || "").trim()) {
+    throw new Error("ZMQ_HASHBLOCK_ENDPOINT is required when ENABLE_ZMQ_HASHBLOCK=true");
+  }
+  if (String(cfg.zmqHashblockEndpoint || "").trim()) {
+    let endpoint;
+    try {
+      endpoint = new URL(String(cfg.zmqHashblockEndpoint).trim());
+    } catch (err) {
+      throw new Error("ZMQ_HASHBLOCK_ENDPOINT must be a valid URL (for example tcp://127.0.0.1:28332)");
+    }
+    if (endpoint.protocol !== "tcp:") {
+      throw new Error("ZMQ_HASHBLOCK_ENDPOINT must use tcp://");
+    }
+    const zmqPort = Number(endpoint.port);
+    if (!Number.isInteger(zmqPort) || zmqPort < 1 || zmqPort > 65535) {
+      throw new Error("ZMQ_HASHBLOCK_ENDPOINT port must be between 1 and 65535");
+    }
+  }
+  if (cfg.zmqReconnectBaseMs < 50) {
+    throw new Error("ZMQ_RECONNECT_BASE_MS must be >= 50");
+  }
+  if (cfg.zmqReconnectMaxMs < cfg.zmqReconnectBaseMs) {
+    throw new Error("ZMQ_RECONNECT_MAX_MS must be >= ZMQ_RECONNECT_BASE_MS");
   }
   if (cfg.maxJobSubmissionsTracked < 1000) {
     throw new Error("MAX_JOB_SUBMISSIONS_TRACKED must be >= 1000");

@@ -20,7 +20,8 @@ High-priority goals for this build:
 | **Two-Stage New-Block Fastpath** | ✅ Near-empty first notify, then full template follow-up |
 | **SHA256d Mining** | ✅ Native validation, other algos planned |
 | **Variable Difficulty** | ✅ Per-miner automatic retargeting |
-| **Longpoll** | ✅ Instant new block notifications |
+| **ZMQ `hashblock` Detection** | ✅ Sub-millisecond new block push notifications |
+| **Longpoll (Optional Fallback)** | ✅ Supported when ZMQ is disabled |
 | **Rate Limiting** | ✅ DoS protection with per-IP limits |
 | **Live Dashboard** | ✅ Real-time stats with confetti on blocks 🎉 |
 | **Prometheus Metrics** | ✅ Full observability with latency histograms |
@@ -56,7 +57,8 @@ High-priority goals for this build:
 - ESP-Miner-aware non-clean notify coalescing with adaptive pacing based on latency/reject signals
 - Extranonce namespace orchestration via `mining.set_extranonce` (when miner subscribed)
 - Direct DigiByte JSON-RPC `getblocktemplate` + `submitblock`
-- Longpoll support for fast new-block propagation
+- ZMQ `hashblock` subscription support for fastest new-block propagation
+- Longpoll support as a fallback signal channel
 - Two-stage new-block propagation: fast near-empty template, then full template
 - Per-connection extranonce1 partitioning (prevents active miner nonce-space overlap)
 - In-memory solo pool state (no DB, no web framework overhead)
@@ -136,6 +138,11 @@ Typical requirements:
 - `rpcpassword=...`
 - `rpcallowip=<coolify/docker network>`
 - `rpcbind=0.0.0.0` (or specific LAN IP)
+
+For ZMQ new-block push notifications (recommended):
+
+- `zmqpubhashblock=tcp://0.0.0.0:28332` (or a specific LAN IP)
+- Allow pool host/container to reach that endpoint
 
 Important on DigiByte multi-algo setups:
 
@@ -349,6 +356,10 @@ NODE_RPC_PASS=your-rpc-password          # RPC password
 NODE_RPC_TLS=false                       # Use HTTPS for RPC (rare)
 NODE_RPC_TIMEOUT_MS=5000                 # Normal RPC timeout
 NODE_RPC_LONGPOLL_TIMEOUT_MS=90000       # Longpoll timeout
+ENABLE_ZMQ_HASHBLOCK=true                # Use ZMQ hashblock push notifications (default)
+ZMQ_HASHBLOCK_ENDPOINT=tcp://127.0.0.1:28332 # DigiByte Core zmqpubhashblock endpoint
+ZMQ_RECONNECT_BASE_MS=250                # Initial reconnect delay
+ZMQ_RECONNECT_MAX_MS=10000               # Max reconnect delay
 ALLOW_NODE_POW_ALGO_MISMATCH=false       # Allow algo mismatch (not recommended)
 ```
 
@@ -431,11 +442,11 @@ MINER_AUTH_TOKEN=                        # Optional: Require token in password (
 ### Template Management
 
 ```bash
-ENABLE_LONGPOLL=true                     # Enable longpoll for instant new block notification
-TEMPLATE_POLL_MS=1000                    # Template poll interval when longpoll unavailable
-TEMPLATE_POLL_MS_LONGPOLL_HEALTHY=500    # Backup poll even when longpoll is healthy
-LONGPOLL_HEALTHY_GRACE_MS=120000         # How long to consider longpoll healthy (2 minutes)
-ENABLE_NEW_BLOCK_FASTPATH=true           # On longpoll new block, send a minimal tx template first
+ENABLE_LONGPOLL=false                    # Enable longpoll signal channel (optional fallback)
+TEMPLATE_POLL_MS=1000                    # Template poll interval when no healthy signal channel
+TEMPLATE_POLL_MS_LONGPOLL_HEALTHY=500    # Backup poll even when signal channel is healthy
+LONGPOLL_HEALTHY_GRACE_MS=120000         # Healthy-signal grace window (ms)
+ENABLE_NEW_BLOCK_FASTPATH=true           # On ZMQ/longpoll new block, send minimal tx template first
 NEW_BLOCK_FASTPATH_TX_LIMIT=0            # Tx count for fastpath template (0 = near-empty block)
 ENABLE_SPECULATIVE_NEXT_TEMPLATE_PREBUILD=true # Prebuild N+1 coinbase/merkle artifacts in background
 ENABLE_PROACTIVE_NONCE_SPACE_REFRESH=true # Proactively refresh active job nonce space for fast miners
