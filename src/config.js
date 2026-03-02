@@ -57,6 +57,12 @@ function loadConfig() {
     versionRollingMaskHex: (process.env.VERSION_ROLLING_MASK || "1fffe000"),
     versionRollingMinBitCount: toInt(process.env.VERSION_ROLLING_MIN_BIT_COUNT, 1),
     enableVersionMaskSlicing: toBool(process.env.ENABLE_VERSION_MASK_SLICING, true),
+    disableSlicingForNerdAxe: toBool(
+      process.env.DISABLE_SLICING_FOR_NERDAXE !== undefined
+        ? process.env.DISABLE_SLICING_FOR_NERDAXE
+        : process.env.DISABLE_SLICING_FOR_NERDOCTAXE,
+      true
+    ),
     versionMaskSliceBitsPerMiner: toInt(process.env.VERSION_MASK_SLICE_BITS_PER_MINER, 2),
     versionMaskSliceFallbackRejects: toInt(process.env.VERSION_MASK_SLICE_FALLBACK_REJECTS, 8),
 

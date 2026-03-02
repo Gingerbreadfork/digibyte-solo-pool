@@ -391,6 +391,7 @@ EXTRANONCE2_SIZE=8                       # Extranonce2 size in bytes (2-16)
 VERSION_ROLLING_MASK=1fffe000           # Overt ASICBoost mask advertised via mining.configure
 VERSION_ROLLING_MIN_BIT_COUNT=1         # Minimum rolling bits requested from miners
 ENABLE_VERSION_MASK_SLICING=true        # Per-miner disjoint version-mask slices (auto-active only with >=2 compatible miners)
+DISABLE_SLICING_FOR_NERDAXE=true        # Compatibility profile: keep NerdAxe/NerdOctaxe on full mask
 VERSION_MASK_SLICE_BITS_PER_MINER=2     # Target number of rolling bits per miner slice
 VERSION_MASK_SLICE_FALLBACK_REJECTS=8   # Auto-fallback to full mask after N reject streak
 ```

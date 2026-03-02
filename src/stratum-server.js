@@ -798,6 +798,9 @@ class StratumServer extends EventEmitter {
     if (!this.config.enableVersionMaskSlicing) {
       return { maskHex: normalizedBase, sliceActive: false, sliceBits: 0, sliceDisabled: false, reason: "feature-disabled" };
     }
+    if (this.config.disableSlicingForNerdAxe && this.isKnownNerdAxeClient(client)) {
+      return { maskHex: normalizedBase, sliceActive: false, sliceBits: 0, sliceDisabled: false, reason: "known-nerdaxe-compat" };
+    }
     if (client.versionRollingSliceDisabled) {
       return { maskHex: normalizedBase, sliceActive: false, sliceBits: 0, sliceDisabled: true, reason: "client-slicing-disabled" };
     }
@@ -1008,6 +1011,13 @@ class StratumServer extends EventEmitter {
 
   isVersionMaskOutsideNegotiatedError(message) {
     return /outside negotiated mask/i.test(String(message || ""));
+  }
+
+  isKnownNerdAxeClient(client) {
+    const ua = String(client && client.userAgent ? client.userAgent : "");
+    const worker = String(client && client.workerName ? client.workerName : "");
+    const text = `${ua} ${worker}`.toLowerCase();
+    return /octaxe|nerd\s*axe/.test(text);
   }
 
   maybeRefreshNonceSpaceAfterAcceptedShare(client, acceptedAt) {
