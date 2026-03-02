@@ -9,11 +9,13 @@ const {
 } = require("./utils");
 
 function loadConfig() {
+  const nodeRpcHost = process.env.NODE_RPC_HOST || "127.0.0.1";
+  const defaultZmqHashblockEndpoint = `tcp://${formatTcpEndpointHost(nodeRpcHost)}:28332`;
   const enableZmqHashblock = toBool(process.env.ENABLE_ZMQ_HASHBLOCK, true);
   const enableLongpollDefault = enableZmqHashblock ? false : true;
 
   const cfg = {
-    nodeRpcHost: process.env.NODE_RPC_HOST || "127.0.0.1",
+    nodeRpcHost,
     nodeRpcPort: toInt(process.env.NODE_RPC_PORT, 14022),
     nodeRpcUser: process.env.NODE_RPC_USER || "",
     nodeRpcPass: process.env.NODE_RPC_PASS || "",
@@ -22,7 +24,7 @@ function loadConfig() {
     nodeRpcLongpollTimeoutMs: toInt(process.env.NODE_RPC_LONGPOLL_TIMEOUT_MS, 90000),
     allowNodePowAlgoMismatch: toBool(process.env.ALLOW_NODE_POW_ALGO_MISMATCH, false),
     enableZmqHashblock,
-    zmqHashblockEndpoint: process.env.ZMQ_HASHBLOCK_ENDPOINT || "tcp://127.0.0.1:28332",
+    zmqHashblockEndpoint: process.env.ZMQ_HASHBLOCK_ENDPOINT || defaultZmqHashblockEndpoint,
     zmqReconnectBaseMs: toInt(process.env.ZMQ_RECONNECT_BASE_MS, 250),
     zmqReconnectMaxMs: toInt(process.env.ZMQ_RECONNECT_MAX_MS, 10000),
 
@@ -267,6 +269,15 @@ function countSetBitsU32(value) {
     count += 1;
   }
   return count;
+}
+
+function formatTcpEndpointHost(host) {
+  const raw = String(host || "").trim();
+  if (!raw) return "127.0.0.1";
+  if (raw.includes(":") && !raw.startsWith("[") && !raw.endsWith("]")) {
+    return `[${raw}]`;
+  }
+  return raw;
 }
 
 module.exports = { loadConfig };
