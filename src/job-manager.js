@@ -56,6 +56,7 @@ class JobManager extends EventEmitter {
     this.lastNonceSpaceRefreshAt = 0;
     this.stats.recentBlocks = sanitizeRecentBlocksForRuntime(this.stats.recentBlocks);
     this.stats.templatePollFailureStreak = this.templatePollFailureStreak;
+    this.stats.totalRewardSats = initializeTotalRewardSats(this.stats);
   }
 
   async init() {
@@ -256,6 +257,17 @@ class JobManager extends EventEmitter {
     }
 
     out.lastCheckedAt = Math.max(0, Math.floor(Number(checkedAt) || 0));
+    if (out.status === BLOCK_STATUS_CONFIRMED && previousStatus !== BLOCK_STATUS_CONFIRMED) {
+      this.stats.totalRewardSats = Math.max(0, Number(this.stats.totalRewardSats) || 0)
+        + Math.max(0, Math.floor(Number(out.rewardSats) || 0));
+    }
+    if (out.status === BLOCK_STATUS_ORPHANED && previousStatus === BLOCK_STATUS_CONFIRMED) {
+      this.stats.totalRewardSats = Math.max(
+        0,
+        Math.max(0, Number(this.stats.totalRewardSats) || 0)
+          - Math.max(0, Math.floor(Number(out.rewardSats) || 0))
+      );
+    }
     if (out.status === BLOCK_STATUS_ORPHANED && previousStatus !== BLOCK_STATUS_ORPHANED) {
       this.stats.blocksOrphaned = Math.max(0, Number(this.stats.blocksOrphaned) || 0) + 1;
     }
@@ -1295,6 +1307,20 @@ function normalizeRuntimeBlockEntry(block) {
     rewardSats: Math.max(0, Math.floor(Number(block.rewardSats) || 0)),
     lastCheckedAt: Math.max(0, Math.floor(Number(block.lastCheckedAt) || 0))
   };
+}
+
+function initializeTotalRewardSats(stats) {
+  if (!stats || typeof stats !== "object") return 0;
+  const current = Math.max(0, Math.floor(Number(stats.totalRewardSats) || 0));
+  if (current > 0) return current;
+  const blocks = sanitizeRecentBlocksForRuntime(stats.recentBlocks);
+  let seeded = 0;
+  for (let i = 0; i < blocks.length; i += 1) {
+    const block = blocks[i];
+    if (block.status !== BLOCK_STATUS_CONFIRMED) continue;
+    seeded += Math.max(0, Math.floor(Number(block.rewardSats) || 0));
+  }
+  return seeded;
 }
 
 function normalizeBlockStatus(status) {

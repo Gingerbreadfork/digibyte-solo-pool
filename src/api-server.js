@@ -371,6 +371,7 @@ class ApiServer {
     const lastFoundBlockHash = this.stats.lastFoundBlockHash;
     const lastFoundBlockAt = this.stats.lastFoundBlockAt;
     const blocksOrphaned = this.stats.blocksOrphaned || 0;
+    const totalRewardSats = this.stats.totalRewardSats || 0;
     const recentBlocks = Array.isArray(this.stats.recentBlocks) ? this.stats.recentBlocks.slice(0, 10) : [];
 
     // Reset session stats
@@ -396,6 +397,7 @@ class ApiServer {
     this.stats.lastFoundBlockHash = lastFoundBlockHash;
     this.stats.lastFoundBlockAt = lastFoundBlockAt;
     this.stats.blocksOrphaned = blocksOrphaned;
+    this.stats.totalRewardSats = totalRewardSats;
     this.stats.recentBlocks = recentBlocks;
 
     // Reset pool start time for session stats

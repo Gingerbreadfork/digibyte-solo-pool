@@ -31,6 +31,7 @@ async function main() {
     blocksFound: 0,
     blocksRejected: 0,
     blocksOrphaned: 0,
+    totalRewardSats: 0,
     currentHeight: 0,
     currentNetworkBits: null,
     lastTemplateAt: 0,

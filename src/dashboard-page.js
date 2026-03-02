@@ -1874,6 +1874,7 @@ function renderDashboardHtml() {
           <div class="row"><div class="k">Blocks Found</div><div id="blocks-found" class="v">-</div></div>
           <div class="row"><div class="k">Blocks Rejected</div><div id="blocks-rej" class="v">-</div></div>
           <div class="row"><div class="k">Blocks Orphaned</div><div id="blocks-orphaned" class="v">-</div></div>
+          <div class="row"><div class="k">Lifetime DGB Mined</div><div id="lifetime-dgb-mined" class="v">-</div></div>
           <div class="row"><div class="k">Job Broadcasts</div><div id="job-bcasts" class="v">-</div></div>
         </div>
       </article>
@@ -2008,6 +2009,7 @@ function renderDashboardHtml() {
       blocksFound: d.getElementById("blocks-found"),
       blocksRej: d.getElementById("blocks-rej"),
       blocksOrphaned: d.getElementById("blocks-orphaned"),
+      lifetimeDgbMined: d.getElementById("lifetime-dgb-mined"),
       jobBcasts: d.getElementById("job-bcasts"),
       heightChartMeta: d.getElementById("height-chart-meta"),
       tmplSource: d.getElementById("tmpl-source"),
@@ -2839,6 +2841,7 @@ function renderDashboardHtml() {
           blocksFound,
           blocksRejected,
           blocksOrphaned,
+          totalRewardSats: safeNum(stats.totalRewardSats, 0),
           templatesFetched,
           jobBroadcasts,
           height,
@@ -3095,6 +3098,7 @@ function renderDashboardHtml() {
       animateNumber(refs.blocksFound, d0.blocksFound);
       animateNumber(refs.blocksRej, d0.blocksRejected);
       animateNumber(refs.blocksOrphaned, d0.blocksOrphaned);
+      text(refs.lifetimeDgbMined, fmtDgbFromSats(d0.totalRewardSats));
       animateNumber(refs.jobBcasts, d0.jobBroadcasts);
       text(refs.totalsUpdated, "live");
 
@@ -3405,7 +3409,12 @@ function renderDashboardHtml() {
     function fmtBlockReward(rewardSats) {
       const sats = Math.max(0, Math.floor(safeNum(rewardSats, 0)));
       if (sats <= 0) return "-";
-      return (sats / 1e8).toFixed(8) + " DGB";
+      return fmtDgbFromSats(sats);
+    }
+
+    function fmtDgbFromSats(sats) {
+      const safe = Math.max(0, Math.floor(safeNum(sats, 0)));
+      return (safe / 1e8).toFixed(8) + " DGB";
     }
 
     function renderHealthIndicators(stats, now, workerCount) {

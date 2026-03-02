@@ -21,6 +21,7 @@ const NUMERIC_FIELDS = [
   "blocksFound",
   "blocksRejected",
   "blocksOrphaned",
+  "totalRewardSats",
   "currentHeight",
   "lastTemplateAt",
   "lastTemplateFetchMs",
