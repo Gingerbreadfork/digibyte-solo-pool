@@ -3203,36 +3203,56 @@ function renderDashboardHtml(config) {
       for (let y = 0; y < h; y += 1) {
         const yUp = y > 0 ? (y - 1) : (h - 1);
         const yDown = y < (h - 1) ? (y + 1) : 0;
-        const yUp2 = yUp > 0 ? (yUp - 1) : (h - 1);
-        const yDown2 = yDown < (h - 1) ? (yDown + 1) : 0;
         for (let x = 0; x < w; x += 1) {
           const xLeft = x > 0 ? (x - 1) : (w - 1);
           const xRight = x < (w - 1) ? (x + 1) : 0;
-          const xLeft2 = xLeft > 0 ? (xLeft - 1) : (w - 1);
-          const xRight2 = xRight < (w - 1) ? (xRight + 1) : 0;
           const idx = ((y * w) + x) * 3;
           const left = ((y * w) + xLeft) * 3;
           const right = ((y * w) + xRight) * 3;
           const up = ((yUp * w) + x) * 3;
           const down = ((yDown * w) + x) * 3;
-          const upLeft = ((yUp * w) + xLeft) * 3;
-          const upRight = ((yUp * w) + xRight) * 3;
-          const downLeft = ((yDown * w) + xLeft) * 3;
-          const downRight = ((yDown * w) + xRight) * 3;
 
-          const centerWeight = 0.72;
-          const cardinalWeight = 0.055;
-          const diagonalWeight = 0.0175;
+          const flowX = (
+            Math.sin((y * (0.08 + sigAUnit * 0.04)) + (phase * (0.8 + active)))
+            + Math.cos(((x + y) * (0.05 + sigBUnit * 0.03)) - (phase * (0.55 + active * 0.85)))
+          ) * (0.15 + active * 0.55);
+          const flowY = (
+            Math.cos((x * (0.085 + sigBUnit * 0.04)) - (phase * (0.72 + active * 0.9)))
+            + Math.sin(((x - y) * (0.045 + sigAUnit * 0.03)) + (phase * (0.58 + active * 0.9)))
+          ) * (0.15 + active * 0.55);
 
-          next[idx] = (field[idx] * centerWeight) +
-            ((field[left] + field[right] + field[up] + field[down]) * cardinalWeight) +
-            ((field[upLeft] + field[upRight] + field[downLeft] + field[downRight]) * diagonalWeight);
-          next[idx + 1] = (field[idx + 1] * centerWeight) +
-            ((field[left + 1] + field[right + 1] + field[up + 1] + field[down + 1]) * cardinalWeight) +
-            ((field[upLeft + 1] + field[upRight + 1] + field[downLeft + 1] + field[downRight + 1]) * diagonalWeight);
-          next[idx + 2] = (field[idx + 2] * centerWeight) +
-            ((field[left + 2] + field[right + 2] + field[up + 2] + field[down + 2]) * cardinalWeight) +
-            ((field[upLeft + 2] + field[upRight + 2] + field[downLeft + 2] + field[downRight + 2]) * diagonalWeight);
+          let sx = x - (flowX * dt * 0.95);
+          let sy = y - (flowY * dt * 0.95);
+          if (sx < 0) sx += w;
+          if (sx >= w) sx -= w;
+          if (sy < 0) sy += h;
+          if (sy >= h) sy -= h;
+
+          const x0 = sx | 0;
+          const y0 = sy | 0;
+          const x1 = (x0 + 1) % w;
+          const y1 = (y0 + 1) % h;
+          const fx = sx - x0;
+          const fy = sy - y0;
+          const i00 = ((y0 * w) + x0) * 3;
+          const i10 = ((y0 * w) + x1) * 3;
+          const i01 = ((y1 * w) + x0) * 3;
+          const i11 = ((y1 * w) + x1) * 3;
+
+          for (let c = 0; c < 3; c += 1) {
+            const a00 = field[i00 + c];
+            const a10 = field[i10 + c];
+            const a01 = field[i01 + c];
+            const a11 = field[i11 + c];
+            const advected = (
+              (a00 * (1 - fx) * (1 - fy)) +
+              (a10 * fx * (1 - fy)) +
+              (a01 * (1 - fx) * fy) +
+              (a11 * fx * fy)
+            );
+            const neighborAvg = (field[left + c] + field[right + c] + field[up + c] + field[down + c]) * 0.25;
+            next[idx + c] = clamp255((advected * 0.86) + (field[idx + c] * 0.1) + (neighborAvg * 0.04));
+          }
         }
       }
       state.field = next;
@@ -3251,7 +3271,7 @@ function renderDashboardHtml(config) {
       const y0 = Math.max(0, Math.floor(cy - radius - 1));
       const y1 = Math.min(h - 1, Math.ceil(cy + radius + 1));
       const r2 = radius * radius;
-      const falloff = 2 / Math.max(1, r2);
+      const invR2 = 1 / Math.max(1, r2);
 
       for (let y = y0; y <= y1; y += 1) {
         const dy = (y - cy);
@@ -3259,7 +3279,8 @@ function renderDashboardHtml(config) {
           const dx = (x - cx);
           const d2 = (dx * dx) + (dy * dy);
           if (d2 > r2) continue;
-          const weight = Math.exp(-d2 * falloff) * a;
+          const edge = Math.max(0, 1 - (d2 * invR2));
+          const weight = edge * edge * a;
           const off = ((y * w) + x) * 3;
           field[off] = clamp255((field[off] * (1 - weight)) + (r * weight));
           field[off + 1] = clamp255((field[off + 1] * (1 - weight)) + (g * weight));
@@ -3301,12 +3322,12 @@ function renderDashboardHtml(config) {
         const blob = state.blobs[i];
         const x = (blob.x / state.gridW) * canvas.width;
         const y = (blob.y / state.gridH) * canvas.height;
-        const radius = (blob.radius / state.gridW) * canvas.width * 2.8;
+        const radius = (blob.radius / state.gridW) * canvas.width * 1.5;
         const grad = ctx.createRadialGradient(x, y, 0, x, y, radius);
-        const glowAlpha = 0.10 + (drive * 0.14);
+        const glowAlpha = 0.03 + (drive * 0.06);
         grad.addColorStop(0, "rgba(" + Math.round(blob.colorR) + "," + Math.round(blob.colorG) + "," + Math.round(blob.colorB) + "," + glowAlpha.toFixed(3) + ")");
-        grad.addColorStop(0.4, "rgba(" + Math.round(blob.colorR) + "," + Math.round(blob.colorG) + "," + Math.round(blob.colorB) + "," + (glowAlpha * 0.6).toFixed(3) + ")");
-        grad.addColorStop(0.7, "rgba(" + Math.round(blob.colorR) + "," + Math.round(blob.colorG) + "," + Math.round(blob.colorB) + "," + (glowAlpha * 0.3).toFixed(3) + ")");
+        grad.addColorStop(0.4, "rgba(" + Math.round(blob.colorR) + "," + Math.round(blob.colorG) + "," + Math.round(blob.colorB) + "," + (glowAlpha * 0.3).toFixed(3) + ")");
+        grad.addColorStop(0.7, "rgba(" + Math.round(blob.colorR) + "," + Math.round(blob.colorG) + "," + Math.round(blob.colorB) + "," + (glowAlpha * 0.12).toFixed(3) + ")");
         grad.addColorStop(1, "rgba(" + Math.round(blob.colorR) + "," + Math.round(blob.colorG) + "," + Math.round(blob.colorB) + ",0)");
         ctx.fillStyle = grad;
         ctx.fillRect(x - radius, y - radius, radius * 2, radius * 2);
@@ -3330,25 +3351,6 @@ function renderDashboardHtml(config) {
         ctx.fillStyle = highlight;
         ctx.fillRect(highlightX - radius, highlightY - radius, radius * 2, radius * 2);
       }
-      ctx.restore();
-
-      ctx.save();
-      ctx.globalCompositeOperation = "lighter";
-      ctx.filter = "blur(30px)";
-      for (let i = 0; i < state.blobs.length; i += 1) {
-        const blob = state.blobs[i];
-        const x = (blob.x / state.gridW) * canvas.width;
-        const y = (blob.y / state.gridH) * canvas.height;
-        const radius = (blob.radius / state.gridW) * canvas.width * 4.5;
-        const bloom = ctx.createRadialGradient(x, y, 0, x, y, radius);
-        const bloomAlpha = 0.08 + (drive * 0.12);
-        bloom.addColorStop(0, "rgba(" + Math.round(blob.colorR) + "," + Math.round(blob.colorG) + "," + Math.round(blob.colorB) + "," + bloomAlpha.toFixed(3) + ")");
-        bloom.addColorStop(0.5, "rgba(" + Math.round(blob.colorR) + "," + Math.round(blob.colorG) + "," + Math.round(blob.colorB) + "," + (bloomAlpha * 0.5).toFixed(3) + ")");
-        bloom.addColorStop(1, "rgba(" + Math.round(blob.colorR) + "," + Math.round(blob.colorG) + "," + Math.round(blob.colorB) + ",0)");
-        ctx.fillStyle = bloom;
-        ctx.fillRect(x - radius, y - radius, radius * 2, radius * 2);
-      }
-      ctx.filter = "none";
       ctx.restore();
 
       ctx.save();
