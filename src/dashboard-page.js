@@ -1285,7 +1285,7 @@ function renderDashboardHtml() {
 
     .fleet-prob-grid {
       display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
+      grid-template-columns: repeat(5, minmax(0, 1fr));
       gap: 8px;
     }
 
@@ -1334,70 +1334,9 @@ function renderDashboardHtml() {
       padding: 10px 12px;
     }
 
-    .fleet-prob-foot {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 12px;
-      align-items: stretch;
-    }
-
-    .fleet-prob-foot > .fleet-leading-card {
-      width: 100%;
-      min-height: 100px;
-    }
-
-    .fleet-week-card {
-      display: grid;
+    .fleet-prob-cell.fleet-leading-inline {
       gap: 3px;
-      min-width: 0;
-      justify-items: start;
-      text-align: left;
-      justify-self: stretch;
-    }
-
-    .fleet-week-value {
-      letter-spacing: 0.04em;
-      font-size: 15px;
-      color: var(--cyan);
-      text-shadow: 0 0 10px rgba(89, 179, 255, 0.3);
-      white-space: nowrap;
-    }
-
-    .fleet-week-hint {
-      font-size: 11px;
-      color: var(--ink-2);
-      line-height: 1.4;
-      text-align: left;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      max-width: 100%;
-    }
-
-    .fleet-week-card .fleet-leading-label,
-    .fleet-week-card .fleet-leading-text,
-    .fleet-week-card .fleet-leading-hint {
-      text-align: left;
-    }
-
-    .fleet-leading-card {
-      border: 1px solid var(--line-soft);
-      border-radius: 12px;
-      background: rgba(255, 255, 255, 0.02);
-      padding: 8px 10px;
-      display: grid;
-      gap: 3px;
-      min-width: 0;
-      justify-items: end;
-    }
-
-    .fleet-prob-foot > .fleet-leading-card:last-child {
-      justify-self: stretch;
-    }
-
-    [data-theme="light"] .fleet-leading-card {
-      background: rgba(255, 255, 255, 0.82);
-      border-color: rgba(42, 60, 85, 0.11);
+      align-content: start;
     }
 
     .fleet-leading-label {
@@ -1406,7 +1345,7 @@ function renderDashboardHtml() {
       text-transform: uppercase;
       color: var(--ink-2);
       font-weight: 700;
-      text-align: right;
+      text-align: left;
       line-height: 1.3;
     }
 
@@ -1422,7 +1361,7 @@ function renderDashboardHtml() {
     .fleet-leading-text {
       font-size: 11px;
       color: var(--ink-2);
-      text-align: right;
+      text-align: left;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -1433,7 +1372,7 @@ function renderDashboardHtml() {
       font-size: 11px;
       color: var(--ink-2);
       line-height: 1.4;
-      text-align: right;
+      text-align: left;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -2161,24 +2100,11 @@ function renderDashboardHtml() {
       }
 
       .fleet-prob-grid {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-columns: repeat(3, minmax(0, 1fr));
       }
 
       .difficulty-insights {
         grid-template-columns: 1fr;
-      }
-
-      .fleet-prob-foot {
-        grid-template-columns: 1fr;
-        gap: 6px;
-      }
-
-      .fleet-leading-card {
-        justify-items: start;
-      }
-
-      .fleet-prob-foot > .fleet-leading-card:last-child {
-        justify-self: start;
       }
 
       .fleet-leading-label,
@@ -2186,8 +2112,6 @@ function renderDashboardHtml() {
       .fleet-leading-hint {
         text-align: left;
       }
-
-      .fleet-week-card { justify-items: start; }
     }
 
     @media (max-width: 920px) {
@@ -2602,22 +2526,14 @@ function renderDashboardHtml() {
               <div class="fleet-prob-label">Per Month</div>
               <div class="fleet-prob-value" id="fleet-prob-month">-</div>
             </div>
-          </div>
-          <div class="fleet-prob-expect" id="fleet-prob-expect">Waiting for hashrate and difficulty to estimate expected time-to-block.</div>
-          <div class="fleet-prob-foot">
-            <div class="fleet-leading-card fleet-week-card">
-              <div class="fleet-leading-label">Weekly Block Probability</div>
-              <div class="fleet-leading-value fleet-week-value" id="fleet-prob-bar">░░░░░░░░░░</div>
-              <div class="fleet-leading-text fleet-week-hint" id="fleet-prob-bar-hint">0.0% this week</div>
-              <div class="fleet-leading-hint fleet-week-hint" id="fleet-prob-bar-detail">Chance of >=1 block in next 7 days</div>
-            </div>
-            <div class="fleet-leading-card">
+            <div class="fleet-prob-cell fleet-leading-inline">
               <div class="fleet-leading-label">Best Leading Zeros (Since Last Block)</div>
               <div class="fleet-leading-value" id="leading-zeros-bar">░░░░░░░░░░</div>
               <div class="fleet-leading-text" id="leading-zeros-text">0 of ? needed</div>
               <div class="fleet-leading-hint" id="leading-zeros-hint">Awaiting shares</div>
             </div>
           </div>
+          <div class="fleet-prob-expect" id="fleet-prob-expect">Waiting for hashrate and difficulty to estimate expected time-to-block.</div>
         </div>
       </article>
     </section>
@@ -2878,9 +2794,6 @@ function renderDashboardHtml() {
       fleetProbWeek: d.getElementById("fleet-prob-week"),
       fleetProbMonth: d.getElementById("fleet-prob-month"),
       fleetProbExpect: d.getElementById("fleet-prob-expect"),
-      fleetProbBar: d.getElementById("fleet-prob-bar"),
-      fleetProbBarHint: d.getElementById("fleet-prob-bar-hint"),
-      fleetProbBarDetail: d.getElementById("fleet-prob-bar-detail"),
       healthTemplate: d.getElementById("health-template"),
       healthRpc: d.getElementById("health-rpc"),
       healthWorkers: d.getElementById("health-workers"),
@@ -5019,9 +4932,6 @@ function renderDashboardHtml() {
         text(refs.fleetProbWeek, "-");
         text(refs.fleetProbMonth, "-");
         text(refs.fleetProbExpect, "Waiting for hashrate and difficulty to estimate expected time-to-block.");
-        text(refs.fleetProbBar, "░".repeat(10));
-        text(refs.fleetProbBarHint, "0.0% this week");
-        text(refs.fleetProbBarDetail, "Chance of >=1 block in next 7 days");
         return;
       }
 
@@ -5046,9 +4956,6 @@ function renderDashboardHtml() {
         text(refs.fleetProbExpect, "Expected time-to-block unavailable.");
       }
 
-      text(refs.fleetProbBar, buildProbabilityBar(weekProb, 10));
-      text(refs.fleetProbBarHint, fmtPctFromRatioFixed(weekProb, 1) + " this week");
-      text(refs.fleetProbBarDetail, "Chance of >=1 block in next 7 days");
     }
 
     function describeFleetDifficultyCondition(trend, changePct) {
@@ -5085,13 +4992,6 @@ function renderDashboardHtml() {
       const n = Math.max(0, Math.min(1, safeNum(ratio, 0)));
       const d = Math.max(0, Math.min(4, Math.floor(safeNum(decimals, 1))));
       return (n * 100).toFixed(d) + "%";
-    }
-
-    function buildProbabilityBar(ratio, width) {
-      const n = Math.max(0, Math.min(1, safeNum(ratio, 0)));
-      const w = Math.max(5, Math.floor(safeNum(width, 30)));
-      const filled = Math.max(0, Math.min(w, Math.round(n * w)));
-      return "█".repeat(filled) + "░".repeat(w - filled);
     }
 
     function formatBattlefieldTag(tagRaw) {
