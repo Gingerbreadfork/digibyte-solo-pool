@@ -395,6 +395,9 @@ class ApiServer {
     const blocksOrphaned = this.stats.blocksOrphaned || 0;
     const totalRewardSats = this.stats.totalRewardSats || 0;
     const recentBlocks = Array.isArray(this.stats.recentBlocks) ? this.stats.recentBlocks.slice(0, 10) : [];
+    const networkBattlefield = Array.isArray(this.stats.networkBattlefield)
+      ? this.stats.networkBattlefield.slice(0, 240)
+      : [];
     const topShares = Array.isArray(this.stats.topShares) ? this.stats.topShares.slice(0, 20) : [];
 
     // Reset session stats
@@ -428,6 +431,7 @@ class ApiServer {
     this.stats.blocksOrphaned = blocksOrphaned;
     this.stats.totalRewardSats = totalRewardSats;
     this.stats.recentBlocks = recentBlocks;
+    this.stats.networkBattlefield = networkBattlefield;
     this.stats.topShares = topShares;
 
     // Reset pool start time for session stats

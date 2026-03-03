@@ -71,7 +71,8 @@ async function main() {
     blockMonitorLastError: null,
     recentShares: [],
     recentDifficultySamples: [],
-    recentBlocks: []
+    recentBlocks: [],
+    networkBattlefield: []
   };
   const statsPersistence = new StatsPersistence(config, logger.child("stats-persistence"), stats);
   await statsPersistence.start();

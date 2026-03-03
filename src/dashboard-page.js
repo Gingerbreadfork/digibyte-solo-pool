@@ -728,6 +728,36 @@ function renderDashboardHtml() {
       overflow: hidden;
     }
 
+    .chart-head-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .entropy-fullscreen-btn {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 5px 10px;
+      font-size: 11px;
+      font-family: var(--mono);
+      color: var(--ink-1);
+      background: var(--surface-soft);
+      cursor: pointer;
+      transition: border-color 0.2s ease, background 0.2s ease, color 0.2s ease;
+      white-space: nowrap;
+    }
+
+    .entropy-fullscreen-btn:hover,
+    .entropy-fullscreen-btn:focus-visible {
+      border-color: rgba(116, 191, 255, 0.5);
+      background: rgba(116, 191, 255, 0.14);
+      color: var(--cyan);
+      outline: none;
+    }
+
     .chart-wrap {
       position: relative;
       border-radius: 14px;
@@ -742,7 +772,10 @@ function renderDashboardHtml() {
     }
 
     .entropy-wrap {
-      height: clamp(190px, 22vw, 280px);
+      width: 100%;
+      height: auto;
+      aspect-ratio: 16 / 9;
+      min-height: 220px;
       background:
         radial-gradient(120% 90% at 50% 30%, rgba(116, 191, 255, 0.09), transparent 60%),
         rgba(5, 7, 10, 0.95);
@@ -754,6 +787,35 @@ function renderDashboardHtml() {
         radial-gradient(120% 90% at 50% 30%, rgba(52, 118, 219, 0.12), transparent 60%),
         rgba(248, 242, 232, 0.96);
       border-color: rgba(59, 106, 181, 0.2);
+    }
+
+    #entropy-card:fullscreen,
+    #entropy-card:-webkit-full-screen {
+      width: 100vw;
+      height: 100vh;
+      max-width: none;
+      margin: 0;
+      border-radius: 0;
+      padding: 14px;
+      background: rgba(2, 3, 6, 0.98);
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr) auto;
+      gap: 10px;
+      align-content: stretch;
+      border: none;
+    }
+
+    #entropy-card:fullscreen .entropy-wrap,
+    #entropy-card:-webkit-full-screen .entropy-wrap {
+      width: min(100%, calc((100vh - 110px) * 16 / 9));
+      max-height: calc(100vh - 110px);
+      min-height: 0;
+      margin: 0 auto;
+    }
+
+    #entropy-card:fullscreen .chart-head,
+    #entropy-card:-webkit-full-screen .chart-head {
+      padding-bottom: 8px;
     }
 
     [data-theme="light"] .chart-wrap {
@@ -1007,6 +1069,113 @@ function renderDashboardHtml() {
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
+    }
+
+    .battlefield-list {
+      display: grid;
+      gap: 8px;
+      max-height: 326px;
+      overflow-y: auto;
+      padding-right: 4px;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior: contain;
+      align-content: start;
+      min-height: 0;
+    }
+
+    .battlefield-list::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    .battlefield-list::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.22);
+      border-radius: 999px;
+    }
+
+    [data-theme="light"] .battlefield-list::-webkit-scrollbar-thumb {
+      background: rgba(79, 98, 126, 0.34);
+    }
+
+    .battlefield-list::-webkit-scrollbar-track {
+      background: rgba(255, 255, 255, 0.06);
+      border-radius: 999px;
+    }
+
+    [data-theme="light"] .battlefield-list::-webkit-scrollbar-track {
+      background: rgba(79, 98, 126, 0.12);
+    }
+
+    .battlefield-item {
+      border-radius: 12px;
+      border: 1px solid var(--line-soft);
+      background: rgba(255, 255, 255, 0.02);
+      padding: 9px 10px;
+      display: grid;
+      gap: 4px;
+      min-width: 0;
+    }
+
+    .battlefield-item.ours {
+      border-color: rgba(166, 255, 111, 0.7);
+      background: linear-gradient(180deg, rgba(166, 255, 111, 0.14), rgba(166, 255, 111, 0.04));
+      box-shadow: inset 0 1px 10px rgba(166, 255, 111, 0.12);
+    }
+
+    [data-theme="light"] .battlefield-item {
+      background: rgba(255, 255, 255, 0.86);
+      border-color: rgba(42, 60, 85, 0.12);
+    }
+
+    [data-theme="light"] .battlefield-item.ours {
+      border-color: rgba(91, 160, 51, 0.42);
+      background: linear-gradient(180deg, rgba(173, 229, 142, 0.34), rgba(255, 255, 255, 0.86));
+      box-shadow: inset 0 1px 8px rgba(103, 171, 61, 0.15);
+    }
+
+    .battlefield-main {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    .battlefield-height {
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--teal);
+      min-width: 74px;
+      flex-shrink: 0;
+    }
+
+    .battlefield-pool {
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--ink-0);
+      min-width: 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .battlefield-pool.ours {
+      color: var(--lime);
+      font-weight: 700;
+    }
+
+    .battlefield-tag {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--ink-2);
+      min-width: 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .battlefield-sub {
+      font-size: 11px;
+      color: var(--ink-2);
+      font-family: var(--mono);
     }
 
     .luck-stats {
@@ -1757,6 +1926,7 @@ function renderDashboardHtml() {
       }
 
       .block-list,
+      .battlefield-list,
       .worker-list {
         max-height: 320px;
       }
@@ -2080,6 +2250,27 @@ function renderDashboardHtml() {
     <section class="grid reveal">
       <article class="card chart-card span-8">
         <div class="chart-head">
+          <div class="title">Live SHA256 Battlefield</div>
+          <div id="battlefield-meta" class="meta">waiting for coinbase archaeology</div>
+        </div>
+        <div class="battlefield-list" id="battlefield-list">
+          <div class="empty-state">Waiting for block archaeology data</div>
+        </div>
+      </article>
+      <article class="card table-card span-4">
+        <div class="chart-head">
+          <div class="title">SHA256 Miners Active (1h)</div>
+          <div class="meta">coinbase tags</div>
+        </div>
+        <div class="rows" id="battlefield-hourly">
+          <div class="empty-state">No miner tags observed yet</div>
+        </div>
+      </article>
+    </section>
+
+    <section class="grid reveal">
+      <article class="card chart-card span-8">
+        <div class="chart-head">
           <div class="title">Shares Per Tick</div>
           <div id="shares-chart-meta" class="meta">accepted/rejected deltas</div>
         </div>
@@ -2102,17 +2293,6 @@ function renderDashboardHtml() {
           <div class="row"><div class="k">Lifetime DGB Mined</div><div id="lifetime-dgb-mined" class="v">-</div></div>
           <div class="row"><div class="k">Job Broadcasts</div><div id="job-bcasts" class="v">-</div></div>
         </div>
-      </article>
-    </section>
-
-    <section class="grid reveal">
-      <article class="card chart-card span-12">
-        <div class="chart-head">
-          <div class="title">Entropy Lava Lamp</div>
-          <div id="entropy-meta" class="meta">waiting for share hashes</div>
-        </div>
-        <div class="chart-wrap entropy-wrap"><canvas id="entropy-canvas" aria-label="Entropy lava lamp driven by share hashes"></canvas></div>
-        <div id="entropy-hint" class="hint">Cryptographic entropy visualized from live share hashes</div>
       </article>
     </section>
 
@@ -2167,6 +2347,20 @@ function renderDashboardHtml() {
       </article>
     </section>
 
+    <section class="grid reveal">
+      <article class="card chart-card span-12" id="entropy-card">
+        <div class="chart-head">
+          <div class="title">Entropy Lava Lamp</div>
+          <div class="chart-head-actions">
+            <button id="entropy-fullscreen-btn" class="entropy-fullscreen-btn" type="button">Fullscreen</button>
+            <div id="entropy-meta" class="meta">waiting for share hashes</div>
+          </div>
+        </div>
+        <div class="chart-wrap entropy-wrap"><canvas id="entropy-canvas" aria-label="Entropy lava lamp driven by share hashes"></canvas></div>
+        <div id="entropy-hint" class="hint">Cryptographic entropy visualized from live share hashes</div>
+      </article>
+    </section>
+
     <div class="footer">
       <span id="foot-net">Waiting for data…</span>
     </div>
@@ -2180,6 +2374,7 @@ function renderDashboardHtml() {
     const MAX_POINTS = 120;
     const MAX_TIMELINE_ITEMS = 60;
     const MAX_BLOCKS_HISTORY = 10;
+    const MAX_NETWORK_BATTLEFIELD = 240;
     const DEFAULT_ADDRESS_EXPLORER_BASE = "https://digiexplorer.info/address/";
     const SHARE_TIME_FORMATTER = new Intl.DateTimeFormat(undefined, {
       weekday: "long",
@@ -2297,6 +2492,9 @@ function renderDashboardHtml() {
       luckMeterHint: d.getElementById("luck-meter-hint"),
       blockList: d.getElementById("block-list"),
       blocksMeta: d.getElementById("blocks-meta"),
+      battlefieldMeta: d.getElementById("battlefield-meta"),
+      battlefieldList: d.getElementById("battlefield-list"),
+      battlefieldHourly: d.getElementById("battlefield-hourly"),
       luckMeta: d.getElementById("luck-meta"),
       healthTemplate: d.getElementById("health-template"),
       healthRpc: d.getElementById("health-rpc"),
@@ -2305,6 +2503,8 @@ function renderDashboardHtml() {
       heroDiffRange: d.getElementById("hero-diff-range"),
       heroDiffWrap: d.getElementById("hero-diff-wrap"),
       heroDiffTooltip: d.getElementById("hero-diff-tooltip"),
+      entropyCard: d.getElementById("entropy-card"),
+      entropyFullscreenBtn: d.getElementById("entropy-fullscreen-btn"),
       entropyCanvas: d.getElementById("entropy-canvas"),
       entropyMeta: d.getElementById("entropy-meta"),
       entropyHint: d.getElementById("entropy-hint")
@@ -2335,6 +2535,7 @@ function renderDashboardHtml() {
     charts.heroDiff.lastSamples = [];
     setupHeroDiffInteractions();
     const entropyLamp = createEntropyLamp(refs.entropyCanvas);
+    setupEntropyFullscreen();
 
     let renderQueued = false;
     let latestModel = null;
@@ -2956,6 +3157,60 @@ function renderDashboardHtml() {
       refs.heroDiffTooltip.classList.remove("show");
     }
 
+    function setupEntropyFullscreen() {
+      const btn = refs.entropyFullscreenBtn;
+      const card = refs.entropyCard;
+      if (!btn || !card) return;
+
+      const updateLabel = () => {
+        const active = getFullscreenElement() === card;
+        btn.textContent = active ? "Exit Fullscreen" : "Fullscreen";
+      };
+
+      btn.addEventListener("click", async () => {
+        try {
+          if (getFullscreenElement() === card) {
+            await exitFullscreen();
+          } else {
+            await enterFullscreen(card);
+          }
+        } catch (err) {
+          console.warn("Entropy fullscreen toggle failed:", err);
+        } finally {
+          updateLabel();
+        }
+      });
+
+      d.addEventListener("fullscreenchange", updateLabel, { passive: true });
+      d.addEventListener("webkitfullscreenchange", updateLabel, { passive: true });
+      updateLabel();
+    }
+
+    function getFullscreenElement() {
+      return d.fullscreenElement || d.webkitFullscreenElement || null;
+    }
+
+    async function enterFullscreen(el) {
+      if (!el) return;
+      if (typeof el.requestFullscreen === "function") {
+        await el.requestFullscreen();
+        return;
+      }
+      if (typeof el.webkitRequestFullscreen === "function") {
+        el.webkitRequestFullscreen();
+      }
+    }
+
+    async function exitFullscreen() {
+      if (typeof d.exitFullscreen === "function") {
+        await d.exitFullscreen();
+        return;
+      }
+      if (typeof d.webkitExitFullscreen === "function") {
+        d.webkitExitFullscreen();
+      }
+    }
+
     function text(el, value) {
       const v = String(value);
       if (el.textContent !== v) el.textContent = v;
@@ -3368,6 +3623,7 @@ function renderDashboardHtml() {
           bestLeadingZerosAt: safeNum(stats.bestLeadingZerosAt, 0),
           expectedBlocks: safeNum(stats.expectedBlocks, 0),
           topShares: sanitizeTopShares(stats.topShares, 20),
+          networkBattlefield: sanitizeNetworkBattlefield(stats.networkBattlefield, MAX_NETWORK_BATTLEFIELD),
           networkDifficulty: safeNum(difficulty.current, 0),
           difficultyTrend: normalizeDifficultyTrend(difficulty.trend),
           difficultyChangePct: safeNum(difficulty.changePct, 0),
@@ -3539,6 +3795,42 @@ function renderDashboardHtml() {
       return out;
     }
 
+    function sanitizeNetworkBattlefield(input, maxItems) {
+      if (!Array.isArray(input)) return [];
+      const limit = Math.max(1, Math.floor(safeNum(maxItems, MAX_NETWORK_BATTLEFIELD)));
+      const out = [];
+      const seen = new Set();
+
+      for (let i = 0; i < input.length; i += 1) {
+        if (out.length >= limit) break;
+        const row = input[i] || {};
+        const hash = String(row.hash || "").trim().slice(0, 128);
+        if (!hash || seen.has(hash)) continue;
+        seen.add(hash);
+
+        out.push({
+          hash,
+          height: Math.max(0, Math.floor(safeNum(row.height, 0))),
+          timestamp: normalizeEpochMs(row.timestamp),
+          bits: String(row.bits || "").trim().slice(0, 16),
+          difficulty: Math.max(0, safeNum(row.difficulty, 0)),
+          coinbaseTxid: String(row.coinbaseTxid || "").trim().slice(0, 128),
+          coinbaseTagRaw: String(row.coinbaseTagRaw || "").trim().slice(0, 128),
+          poolName: String(row.poolName || "unknown").trim().slice(0, 96) || "unknown",
+          isOurPool: Boolean(row.isOurPool)
+        });
+      }
+      return out;
+    }
+
+    function normalizeEpochMs(value) {
+      const n = safeNum(value, 0);
+      if (n <= 0) return 0;
+      if (n > 1e12) return Math.floor(n);
+      if (n > 1e9) return Math.floor(n * 1000);
+      return 0;
+    }
+
     function normalizeBlockEntry(block, fallbackHeight, fallbackTimestamp) {
       if (!block || typeof block !== "object") return null;
       const hash = String(block.hash || "").trim();
@@ -3687,6 +3979,7 @@ function renderDashboardHtml() {
       renderLeadingZerosScoreboard(j, s, d0, diff);
       renderShareSpectrometer(d0, diff);
       renderBlocksList();
+      renderBattlefield(d0.networkBattlefield);
       renderHealthIndicators(s, now, workers.length);
     }
 
@@ -4323,6 +4616,83 @@ function renderDashboardHtml() {
         \`;
       }
       refs.blockList.innerHTML = html;
+    }
+
+    function renderBattlefield(entries) {
+      const list = Array.isArray(entries) ? entries : [];
+      text(refs.battlefieldMeta, list.length + " blocks tracked");
+
+      if (!list.length) {
+        refs.battlefieldList.innerHTML = '<div class="empty-state">Waiting for block archaeology data</div>';
+        refs.battlefieldHourly.innerHTML = '<div class="empty-state">No miner tags observed yet</div>';
+        return;
+      }
+
+      let html = "";
+      for (let i = 0; i < list.length && i < 20; i += 1) {
+        const row = list[i];
+        const age = row.timestamp > 0 ? (fmtTsAge(row.timestamp) + " ago") : "unknown age";
+        const poolName = row.isOurPool ? "YOUR POOL" : (row.poolName || "unknown");
+        const poolCls = row.isOurPool ? "battlefield-pool ours" : "battlefield-pool";
+        const diffText = row.difficulty > 0 ? fmtDifficulty(row.difficulty) : "-";
+        const tagText = formatBattlefieldTag(row.coinbaseTagRaw);
+        html += \`
+          <div class="battlefield-item \${row.isOurPool ? "ours" : ""}">
+            <div class="battlefield-main">
+              <span class="battlefield-height">#\${fmtInt(row.height)}</span>
+              <span class="\${poolCls}">\${escapeHtml(poolName)}</span>
+              <span class="battlefield-tag">\${escapeHtml(tagText)}</span>
+            </div>
+            <div class="battlefield-sub">diff \${diffText} • \${age}</div>
+          </div>
+        \`;
+      }
+      refs.battlefieldList.innerHTML = html;
+
+      const now = Date.now();
+      const horizonMs = 60 * 60 * 1000;
+      const cutoff = now - horizonMs;
+      const counts = new Map();
+      let ourPoolCount = 0;
+      for (let i = 0; i < list.length; i += 1) {
+        const row = list[i];
+        if (!row || row.timestamp < cutoff) continue;
+        const name = row.isOurPool ? "YOUR POOL" : (row.poolName || "unknown");
+        counts.set(name, (counts.get(name) || 0) + 1);
+        if (row.isOurPool) ourPoolCount += 1;
+      }
+      if (!counts.has("YOUR POOL")) {
+        counts.set("YOUR POOL", ourPoolCount);
+      }
+
+      const ranked = Array.from(counts.entries())
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10);
+
+      if (!ranked.length) {
+        refs.battlefieldHourly.innerHTML = '<div class="empty-state">No blocks tagged in the last hour</div>';
+        return;
+      }
+
+      let hourlyHtml = "";
+      for (let i = 0; i < ranked.length; i += 1) {
+        const name = ranked[i][0];
+        const count = ranked[i][1];
+        hourlyHtml += \`
+          <div class="row">
+            <div class="k">\${escapeHtml(name)}</div>
+            <div class="v">\${fmtInt(count)} blocks</div>
+          </div>
+        \`;
+      }
+      refs.battlefieldHourly.innerHTML = hourlyHtml;
+    }
+
+    function formatBattlefieldTag(tagRaw) {
+      const raw = String(tagRaw || "").trim();
+      if (!raw) return "unknown tag";
+      if (raw.startsWith("0x")) return "unknown (tag: " + raw + ")";
+      return '"' + raw + '"';
     }
 
     function fmtBlockStatus(block) {

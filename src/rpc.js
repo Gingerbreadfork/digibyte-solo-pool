@@ -112,6 +112,18 @@ class RpcClient {
     return this.call("getblockheader", [String(blockHash), true]);
   }
 
+  async getBlock(blockHash, verbosity = 2) {
+    return this.call("getblock", [String(blockHash), Number(verbosity)]);
+  }
+
+  async getRawTransaction(txid, verbose = true, blockHash) {
+    const params = [String(txid), Boolean(verbose)];
+    if (blockHash) {
+      params.push(String(blockHash));
+    }
+    return this.call("getrawtransaction", params);
+  }
+
   async getBlockHash(height) {
     return this.call("getblockhash", [Number(height)]);
   }

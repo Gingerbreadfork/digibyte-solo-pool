@@ -23,6 +23,7 @@ const { buildBlockHeader, resolveShareVersionHex } = require("./share-crypto");
 const { ZmqHashblockSubscriber } = require("./zmq-hashblock-subscriber");
 
 const MAX_RECENT_BLOCKS = 10;
+const MAX_NETWORK_BATTLEFIELD = 240;
 const MAX_TX_ARTIFACT_CACHE = 8;
 const MAX_COINBASE_PIECES_CACHE = 32;
 const MAX_DIFFICULTY_SAMPLES = 360;
@@ -31,6 +32,19 @@ const DIFFICULTY_TREND_EPSILON_PCT = 0.5;
 const BLOCK_STATUS_PENDING = "pending";
 const BLOCK_STATUS_CONFIRMED = "confirmed";
 const BLOCK_STATUS_ORPHANED = "orphaned";
+const KNOWN_POOL_TAG_PATTERNS = [
+  { name: "AntPool", re: /antpool|mined by antpool/i },
+  { name: "NiceHash", re: /nicehash/i },
+  { name: "zpool", re: /zpool/i },
+  { name: "ViaBTC", re: /viabtc/i },
+  { name: "BTC.com", re: /btc\.com/i },
+  { name: "F2Pool", re: /f2pool|discus fish/i },
+  { name: "Binance Pool", re: /binance/i },
+  { name: "Poolin", re: /poolin/i },
+  { name: "EMCD", re: /emcd/i },
+  { name: "Luxor", re: /luxor/i },
+  { name: "SpiderPool", re: /spiderpool/i }
+];
 
 class JobManager extends EventEmitter {
   constructor(config, logger, rpcClient, stats) {
@@ -63,7 +77,9 @@ class JobManager extends EventEmitter {
     this.coinbasePiecesCache = new Map();
     this.speculativePrebuildSeq = 0;
     this.lastNonceSpaceRefreshAt = 0;
+    this.blockArchaeologyFailureStreak = 0;
     this.stats.recentBlocks = sanitizeRecentBlocksForRuntime(this.stats.recentBlocks);
+    this.stats.networkBattlefield = sanitizeNetworkBattlefieldForRuntime(this.stats.networkBattlefield);
     this.stats.recentDifficultySamples = sanitizeRecentDifficultySamplesForRuntime(this.stats.recentDifficultySamples);
     this.stats.templatePollFailureStreak = this.templatePollFailureStreak;
     this.stats.totalRewardSats = initializeTotalRewardSats(this.stats);
@@ -513,8 +529,77 @@ class JobManager extends EventEmitter {
       templateVariant: fastpathBroadcasted ? "full-followup" : "full"
     });
     this.publishJob(fullJob, source, { originalTxCount, isFollowup: fastpathBroadcasted });
+    if (isNewPrev) {
+      this.queuePreviousBlockArchaeology(template);
+    }
     this.scheduleSpeculativeNextTemplatePrebuild(template);
     this.lastTemplateFingerprint = fingerprint;
+  }
+
+  queuePreviousBlockArchaeology(template) {
+    const previousBlockHash = safeNormalizeHex(template && template.previousblockhash);
+    if (!previousBlockHash) return;
+
+    const nextTemplateHeight = Math.max(0, Math.floor(Number(template && template.height) || 0));
+    this.capturePreviousBlockArchaeology(previousBlockHash, nextTemplateHeight).catch((err) => {
+      this.blockArchaeologyFailureStreak += 1;
+      if (shouldLogFailure(this.blockArchaeologyFailureStreak)) {
+        this.logger.warn("Coinbase archaeology fetch failed", {
+          error: err && err.message ? err.message : String(err),
+          previousBlockHash,
+          failureStreak: this.blockArchaeologyFailureStreak
+        });
+      }
+    });
+  }
+
+  async capturePreviousBlockArchaeology(previousBlockHash, nextTemplateHeight) {
+    const block = await this.rpc.getBlock(previousBlockHash, 1);
+    const txids = Array.isArray(block && block.tx) ? block.tx : [];
+    const coinbaseTxid = safeNormalizeHex(txids[0]);
+
+    let coinbaseScriptSigHex = "";
+    if (coinbaseTxid) {
+      let rawTx = null;
+      try {
+        rawTx = await this.rpc.getRawTransaction(coinbaseTxid, true, previousBlockHash);
+      } catch (_err) {
+        rawTx = await this.rpc.getRawTransaction(coinbaseTxid, true);
+      }
+      coinbaseScriptSigHex = normalizeCoinbaseScriptSigHex(rawTx);
+    }
+
+    const heightHint = Math.max(0, nextTemplateHeight - 1);
+    const height = Math.max(0, Math.floor(Number(block && block.height) || heightHint));
+    const bits = safeNormalizeHex(block && block.bits).padStart(8, "0");
+    const difficultyRpc = Number(block && block.difficulty);
+    const difficulty = (Number.isFinite(difficultyRpc) && difficultyRpc > 0)
+      ? difficultyRpc
+      : (bits ? compactBitsToDifficulty(bits) : 0);
+
+    const blockTimeSec = Number(block && (block.time || block.mediantime || 0));
+    const timestamp = normalizeTimestampMs(blockTimeSec > 0 ? blockTimeSec * 1000 : Date.now());
+    const attribution = classifyCoinbaseAttribution(coinbaseScriptSigHex, this.config.poolTag);
+
+    pushNetworkBattlefield(this.stats, {
+      hash: previousBlockHash,
+      height,
+      timestamp,
+      bits,
+      difficulty,
+      coinbaseTxid,
+      coinbaseTagRaw: attribution.tagRaw,
+      poolName: attribution.poolName,
+      isOurPool: attribution.isOurPool
+    });
+
+    if (this.blockArchaeologyFailureStreak > 0) {
+      this.logger.info("Coinbase archaeology fetch recovered", {
+        previousBlockHash,
+        recoveredAfterFailures: this.blockArchaeologyFailureStreak
+      });
+    }
+    this.blockArchaeologyFailureStreak = 0;
   }
 
   publishJob(job, source, options) {
@@ -1391,6 +1476,140 @@ function pushRecentBlock(stats, block) {
   stats.recentBlocks = deduped;
 }
 
+function pushNetworkBattlefield(stats, entry) {
+  if (!stats || typeof stats !== "object") return;
+  stats.networkBattlefield = sanitizeNetworkBattlefieldForRuntime(stats.networkBattlefield);
+  const normalized = normalizeRuntimeBattlefieldEntry(entry);
+  if (!normalized) return;
+  const deduped = stats.networkBattlefield.filter((item) => item && item.hash !== normalized.hash);
+  deduped.unshift(normalized);
+  if (deduped.length > MAX_NETWORK_BATTLEFIELD) {
+    deduped.length = MAX_NETWORK_BATTLEFIELD;
+  }
+  stats.networkBattlefield = deduped;
+}
+
+function sanitizeNetworkBattlefieldForRuntime(input) {
+  if (!Array.isArray(input)) return [];
+  const out = [];
+  const seenHashes = new Set();
+  for (let i = 0; i < input.length; i += 1) {
+    if (out.length >= MAX_NETWORK_BATTLEFIELD) break;
+    const entry = normalizeRuntimeBattlefieldEntry(input[i]);
+    if (!entry || seenHashes.has(entry.hash)) continue;
+    seenHashes.add(entry.hash);
+    out.push(entry);
+  }
+  return out;
+}
+
+function normalizeRuntimeBattlefieldEntry(entry) {
+  if (!entry || typeof entry !== "object") return null;
+  const hash = safeNormalizeHex(entry.hash);
+  if (!hash) return null;
+  const bits = safeNormalizeHex(entry.bits).padStart(8, "0");
+  return {
+    hash,
+    height: Math.max(0, Math.floor(Number(entry.height) || 0)),
+    timestamp: normalizeTimestampMs(entry.timestamp),
+    bits,
+    difficulty: Math.max(0, Number(entry.difficulty) || 0),
+    coinbaseTxid: safeNormalizeHex(entry.coinbaseTxid) || "",
+    coinbaseTagRaw: String(entry.coinbaseTagRaw || "0x").trim().slice(0, 128),
+    poolName: String(entry.poolName || "unknown").trim().slice(0, 96) || "unknown",
+    isOurPool: Boolean(entry.isOurPool)
+  };
+}
+
+function normalizeCoinbaseScriptSigHex(rawTx) {
+  if (!rawTx || typeof rawTx !== "object") return "";
+  const vin = Array.isArray(rawTx.vin) ? rawTx.vin : [];
+  if (!vin.length || !vin[0] || typeof vin[0] !== "object") return "";
+  return safeNormalizeHex(vin[0].coinbase);
+}
+
+function classifyCoinbaseAttribution(coinbaseScriptSigHex, poolTag) {
+  const asciiSegments = extractAsciiSegmentsFromCoinbase(coinbaseScriptSigHex);
+  const tagRawDefault = coinbaseScriptSigHex
+    ? ("0x" + coinbaseScriptSigHex.slice(0, 8))
+    : "0x";
+  const haystack = asciiSegments.join(" | ");
+  const poolTagNeedle = normalizePoolTagNeedle(poolTag);
+
+  if (poolTagNeedle && haystack.toLowerCase().includes(poolTagNeedle)) {
+    const matchedSegment = findFirstMatchingSegment(asciiSegments, new RegExp(escapeRegExp(poolTagNeedle), "i"));
+    return {
+      poolName: "YOUR POOL",
+      tagRaw: matchedSegment || tagRawDefault,
+      isOurPool: true
+    };
+  }
+
+  for (let i = 0; i < KNOWN_POOL_TAG_PATTERNS.length; i += 1) {
+    const pattern = KNOWN_POOL_TAG_PATTERNS[i];
+    const matchedSegment = findFirstMatchingSegment(asciiSegments, pattern.re);
+    if (matchedSegment || pattern.re.test(haystack)) {
+      return {
+        poolName: pattern.name,
+        tagRaw: matchedSegment || sanitizeTagRaw(haystack) || tagRawDefault,
+        isOurPool: false
+      };
+    }
+  }
+
+  return {
+    poolName: "unknown",
+    tagRaw: sanitizeTagRaw(asciiSegments[0]) || tagRawDefault,
+    isOurPool: false
+  };
+}
+
+function extractAsciiSegmentsFromCoinbase(coinbaseScriptSigHex) {
+  const clean = safeNormalizeHex(coinbaseScriptSigHex);
+  if (!clean) return [];
+  const buf = Buffer.from(clean, "hex");
+  const out = [];
+  let start = -1;
+  for (let i = 0; i < buf.length; i += 1) {
+    const b = buf[i];
+    const printable = b >= 0x20 && b <= 0x7e;
+    if (printable) {
+      if (start === -1) start = i;
+      continue;
+    }
+    if (start !== -1) {
+      const segment = buf.slice(start, i).toString("utf8").trim();
+      if (segment.length >= 3) out.push(segment.slice(0, 128));
+      start = -1;
+    }
+  }
+  if (start !== -1) {
+    const tail = buf.slice(start).toString("utf8").trim();
+    if (tail.length >= 3) out.push(tail.slice(0, 128));
+  }
+  return out;
+}
+
+function findFirstMatchingSegment(segments, pattern) {
+  if (!Array.isArray(segments) || !pattern) return "";
+  for (let i = 0; i < segments.length; i += 1) {
+    const segment = String(segments[i] || "");
+    if (pattern.test(segment)) return segment.slice(0, 128);
+  }
+  return "";
+}
+
+function sanitizeTagRaw(value) {
+  const raw = String(value || "").trim();
+  return raw ? raw.slice(0, 128) : "";
+}
+
+function normalizePoolTagNeedle(poolTag) {
+  const raw = String(poolTag || "").trim();
+  if (!raw) return "";
+  return raw.toLowerCase();
+}
+
 function sanitizeRecentBlocksForRuntime(input) {
   if (!Array.isArray(input)) return [];
   const out = [];
@@ -1517,6 +1736,19 @@ function safeNormalizeHex(value) {
   } catch (_err) {
     return "";
   }
+}
+
+function normalizeTimestampMs(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  if (n > 1e12) return Math.floor(n);
+  if (n > 1e9) return Math.floor(n * 1000);
+  if (n > 1e6) return Math.floor(n);
+  return 0;
+}
+
+function escapeRegExp(value) {
+  return String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function isRpcNotFoundError(err) {

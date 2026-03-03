@@ -8,6 +8,7 @@ const SNAPSHOT_FILE = "stats-snapshot.json";
 const WAL_FILE = "stats.wal.ndjson";
 const SNAPSHOT_VERSION = 1;
 const MAX_RECENT_BLOCKS = 10;
+const MAX_NETWORK_BATTLEFIELD = 240;
 
 const NUMERIC_FIELDS = [
   "templatesFetched",
@@ -374,6 +375,7 @@ function makeCompactStats(stats) {
     compact[field] = sanitizeStringOrNull(src[field], 256);
   }
   compact.recentBlocks = sanitizeRecentBlocks(src.recentBlocks, MAX_RECENT_BLOCKS);
+  compact.networkBattlefield = sanitizeNetworkBattlefield(src.networkBattlefield, MAX_NETWORK_BATTLEFIELD);
   compact.topShares = sanitizeTopShares(src.topShares, 20);
 
   return compact;
@@ -397,6 +399,7 @@ function applyCompactStats(target, src) {
     target[field] = compact[field];
   }
   target.recentBlocks = compact.recentBlocks;
+  target.networkBattlefield = compact.networkBattlefield;
   target.topShares = compact.topShares;
 }
 
@@ -413,6 +416,7 @@ function sanitizeCompactStats(src) {
     out[field] = sanitizeStringOrNull(obj[field], 256);
   }
   out.recentBlocks = sanitizeRecentBlocks(obj.recentBlocks, MAX_RECENT_BLOCKS);
+  out.networkBattlefield = sanitizeNetworkBattlefield(obj.networkBattlefield, MAX_NETWORK_BATTLEFIELD);
   out.topShares = sanitizeTopShares(obj.topShares, 20);
   return out;
 }
@@ -522,6 +526,34 @@ function sanitizeRecentBlocks(input, maxItems) {
     });
   }
 
+  return out;
+}
+
+function sanitizeNetworkBattlefield(input, maxItems) {
+  if (!Array.isArray(input)) return [];
+  const safeMax = Math.max(1, Number(maxItems) || MAX_NETWORK_BATTLEFIELD);
+  const out = [];
+  const seen = new Set();
+
+  for (let i = 0; i < input.length; i += 1) {
+    if (out.length >= safeMax) break;
+    const row = input[i] || {};
+    const hash = sanitizeString(row.hash, 128);
+    if (!hash || seen.has(hash)) continue;
+    seen.add(hash);
+
+    out.push({
+      hash,
+      height: sanitizeNumber(row.height),
+      timestamp: sanitizeNumber(row.timestamp),
+      bits: sanitizeString(row.bits || "", 16),
+      difficulty: sanitizePositiveFloat(row.difficulty),
+      coinbaseTxid: sanitizeString(row.coinbaseTxid || "", 128),
+      coinbaseTagRaw: sanitizeString(row.coinbaseTagRaw || "", 128),
+      poolName: sanitizeString(row.poolName || "unknown", 96),
+      isOurPool: Boolean(row.isOurPool)
+    });
+  }
   return out;
 }
 
