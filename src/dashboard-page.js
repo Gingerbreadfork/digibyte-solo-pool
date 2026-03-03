@@ -811,15 +811,9 @@ function renderDashboardHtml(config) {
       height: auto;
       aspect-ratio: 16 / 9;
       min-height: 220px;
-      background:
-        radial-gradient(130% 105% at 50% 6%, rgba(132, 229, 255, 0.2), transparent 56%),
-        radial-gradient(110% 90% at 12% 100%, rgba(255, 147, 82, 0.09), transparent 64%),
-        radial-gradient(105% 85% at 90% 96%, rgba(113, 255, 188, 0.08), transparent 64%),
-        linear-gradient(180deg, rgba(5, 11, 18, 0.96), rgba(2, 5, 9, 0.98));
+      background: #000000;
       border-color: rgba(116, 191, 255, 0.28);
-      box-shadow:
-        inset 0 24px 42px rgba(81, 173, 255, 0.08),
-        inset 0 -32px 42px rgba(0, 0, 0, 0.44);
+      box-shadow: inset 0 0 0 1px rgba(116, 191, 255, 0.1);
     }
 
     [data-theme="light"] .entropy-wrap {
@@ -3145,19 +3139,10 @@ function renderDashboardHtml(config) {
       const phase = state.phase;
 
       for (let i = 0; i < cells; i += 1) {
-        const x = i % w;
-        const y = (i / w) | 0;
-        const sigWarp = ((sigAUnit - 0.5) * 0.08) + ((sigBUnit - 0.5) * 0.05);
-        const waveA = Math.sin((x * (0.11 + sigWarp)) + (phase * (0.9 + (active * 0.9))));
-        const waveB = Math.cos((y * (0.1 + (sigBUnit * 0.04))) - (phase * (1.2 + (active * 1.1))));
-        const waveC = Math.sin(((x + y) * (0.055 + (sigAUnit * 0.02))) + (phase * (0.65 + (active * 0.8))));
-        const drift = (waveA + waveB + waveC) * 0.48;
-        const lift = Math.max(0, (1 - (y / Math.max(1, h - 1))) * 10);
         const off = i * 3;
-        const baseHeat = active * 8.5;
-        field[off] = clamp255((field[off] * 0.972) + (baseHeat * 0.9) + (drift * (1.8 + active * 2.4)) + (lift * 0.16 * active));
-        field[off + 1] = clamp255((field[off + 1] * 0.973) + (baseHeat * 1.0) + (drift * (2.0 + active * 2.6)) + (lift * 0.2 * active));
-        field[off + 2] = clamp255((field[off + 2] * 0.974) + (baseHeat * 1.1) + (drift * (2.3 + active * 2.9)) + (lift * 0.25 * active));
+        field[off] = field[off] * 0.98;
+        field[off + 1] = field[off + 1] * 0.98;
+        field[off + 2] = field[off + 2] * 0.98;
       }
 
       const blobs = state.blobs;
