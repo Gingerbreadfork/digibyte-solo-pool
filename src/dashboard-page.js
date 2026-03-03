@@ -3055,15 +3055,9 @@ function renderDashboardHtml(config) {
       for (let y = 0; y < state.gridH; y += 1) {
         for (let x = 0; x < state.gridW; x += 1) {
           const idx = (y * state.gridW + x) * 3;
-          const tx = x / Math.max(1, state.gridW - 1);
-          const ty = y / Math.max(1, state.gridH - 1);
-          const sky = Math.pow(1 - ty, 0.8);
-          const centerDist = Math.sqrt(Math.pow(tx - 0.5, 2) + Math.pow(ty - 0.5, 2));
-          const vignette = Math.max(0.4, 1 - (centerDist * 0.8));
-          const noise = (Math.sin(tx * 43.7) * Math.cos(ty * 37.3)) * 0.8;
-          state.field[idx] = (2 + (sky * 6) + (Math.sin(tx * Math.PI * 2) * 1) + noise) * vignette;
-          state.field[idx + 1] = (3 + (sky * 7) + (Math.cos((tx * 1.7) + (ty * 2.1)) * 1.2) + noise * 0.6) * vignette;
-          state.field[idx + 2] = (4 + (sky * 8) + (Math.sin((tx * 2.3) - (ty * 1.8)) * 1.4) + noise * 0.5) * vignette;
+          state.field[idx] = 2;
+          state.field[idx + 1] = 2;
+          state.field[idx + 2] = 3;
         }
       }
 
@@ -3095,16 +3089,18 @@ function renderDashboardHtml(config) {
 
     function createEntropyBlobs(gridW, gridH, count) {
       const palette = [
-        [80, 220, 255],
-        [60, 255, 150],
-        [255, 120, 60],
-        [255, 70, 130],
-        [255, 220, 80],
-        [150, 80, 255],
-        [255, 140, 210],
-        [80, 245, 220],
-        [255, 100, 180],
-        [120, 180, 255]
+        [60, 210, 255],
+        [40, 255, 130],
+        [255, 100, 40],
+        [255, 50, 120],
+        [255, 210, 60],
+        [140, 60, 255],
+        [255, 120, 200],
+        [60, 240, 210],
+        [255, 80, 170],
+        [100, 170, 255],
+        [255, 180, 80],
+        [180, 255, 100]
       ];
       const total = Math.max(6, Math.floor(safeNum(count, 12)));
       const blobs = [];
@@ -3193,10 +3189,10 @@ function renderDashboardHtml(config) {
         blob.radius = (blob.radius * 0.978) + (targetRadius * 0.022);
         const pulse = 0.85 + (Math.sin((phase * (1.4 + active * 1.8)) + blob.driftPhase) * (0.15 + active * 0.28));
         const coreRadius = blob.radius * pulse;
-        const haloRadius = blob.radius * (1.9 + (pulse * 0.45));
-        const activeGain = Math.min(1.6, active + Math.min(0.6, state.flowKick * 0.05));
-        const coreAlpha = (0.11 + (blob.heat * 0.04)) * dt * activeGain;
-        const haloAlpha = (0.035 + (blob.heat * 0.015)) * dt * activeGain;
+        const haloRadius = blob.radius * (2.5 + (pulse * 0.6));
+        const activeGain = Math.min(2.5, active + Math.min(1.0, state.flowKick * 0.08));
+        const coreAlpha = (0.35 + (blob.heat * 0.15)) * dt * activeGain;
+        const haloAlpha = (0.12 + (blob.heat * 0.08)) * dt * activeGain;
         depositEntropyCircle(state, blob.x, blob.y, coreRadius, blob.colorR, blob.colorG, blob.colorB, coreAlpha);
         depositEntropyCircle(state, blob.x, blob.y, haloRadius, blob.colorR, blob.colorG, blob.colorB, haloAlpha);
 
@@ -3303,23 +3299,9 @@ function renderDashboardHtml(config) {
         const r = field[src];
         const g = field[src + 1];
         const b = field[src + 2];
-        const lum = (r * 0.299) + (g * 0.587) + (b * 0.114);
-        const chroma = Math.abs(r - g) + Math.abs(g - b) + Math.abs(b - r);
-        const x = i % state.gridW;
-        const y = (i / state.gridW) | 0;
-        const contourWave = Math.sin((lum * 0.085) + (x * 0.032) + (sigAUnit * Math.PI * 2));
-        const contour = Math.pow(Math.max(0, contourWave), 7) * (8 + drive * 6);
-        const tone = lum * 0.4 + (chroma * (0.08 + drive * 0.06)) + contour;
-
-        const satBoost = 1.8 + (drive * 0.5);
-        const lumTarget = Math.max(r, g, b);
-        const rSat = r + ((r - lum) * satBoost);
-        const gSat = g + ((g - lum) * satBoost);
-        const bSat = b + ((b - lum) * satBoost);
-
-        pixels[dst] = clamp255((rSat * 0.92) + (tone * (0.05 + sigAUnit * 0.03)));
-        pixels[dst + 1] = clamp255((gSat * 0.94) + (tone * (0.04 + sigBUnit * 0.02)));
-        pixels[dst + 2] = clamp255((bSat * 0.90) + (tone * (0.03 + ((sigAUnit + sigBUnit) * 0.02))));
+        pixels[dst] = clamp255(r);
+        pixels[dst + 1] = clamp255(g);
+        pixels[dst + 2] = clamp255(b);
         pixels[dst + 3] = 255;
       }
       offCtx.putImageData(imageData, 0, 0);
@@ -3329,17 +3311,17 @@ function renderDashboardHtml(config) {
       ctx.drawImage(offscreen, 0, 0, canvas.width, canvas.height);
 
       ctx.save();
-      ctx.globalCompositeOperation = "screen";
+      ctx.globalCompositeOperation = "lighter";
       for (let i = 0; i < state.blobs.length; i += 1) {
         const blob = state.blobs[i];
         const x = (blob.x / state.gridW) * canvas.width;
         const y = (blob.y / state.gridH) * canvas.height;
-        const radius = (blob.radius / state.gridW) * canvas.width * 2.4;
+        const radius = (blob.radius / state.gridW) * canvas.width * 2.8;
         const grad = ctx.createRadialGradient(x, y, 0, x, y, radius);
-        const glowAlpha = 0.08 + (drive * 0.15);
+        const glowAlpha = 0.18 + (drive * 0.25);
         grad.addColorStop(0, "rgba(" + Math.round(blob.colorR) + "," + Math.round(blob.colorG) + "," + Math.round(blob.colorB) + "," + glowAlpha.toFixed(3) + ")");
-        grad.addColorStop(0.5, "rgba(" + Math.round(blob.colorR) + "," + Math.round(blob.colorG) + "," + Math.round(blob.colorB) + "," + (glowAlpha * 0.5).toFixed(3) + ")");
-        grad.addColorStop(0.8, "rgba(" + Math.round(blob.colorR) + "," + Math.round(blob.colorG) + "," + Math.round(blob.colorB) + "," + (glowAlpha * 0.2).toFixed(3) + ")");
+        grad.addColorStop(0.4, "rgba(" + Math.round(blob.colorR) + "," + Math.round(blob.colorG) + "," + Math.round(blob.colorB) + "," + (glowAlpha * 0.6).toFixed(3) + ")");
+        grad.addColorStop(0.7, "rgba(" + Math.round(blob.colorR) + "," + Math.round(blob.colorG) + "," + Math.round(blob.colorB) + "," + (glowAlpha * 0.3).toFixed(3) + ")");
         grad.addColorStop(1, "rgba(" + Math.round(blob.colorR) + "," + Math.round(blob.colorG) + "," + Math.round(blob.colorB) + ",0)");
         ctx.fillStyle = grad;
         ctx.fillRect(x - radius, y - radius, radius * 2, radius * 2);
@@ -3347,36 +3329,36 @@ function renderDashboardHtml(config) {
       ctx.restore();
 
       ctx.save();
-      ctx.globalCompositeOperation = "screen";
+      ctx.globalCompositeOperation = "lighter";
       for (let i = 0; i < state.blobs.length; i += 1) {
         const blob = state.blobs[i];
         const x = (blob.x / state.gridW) * canvas.width;
         const y = (blob.y / state.gridH) * canvas.height;
-        const radius = (blob.radius / state.gridW) * canvas.width * 0.9;
-        const highlightX = x - (radius * 0.3);
-        const highlightY = y - (radius * 0.3);
-        const highlight = ctx.createRadialGradient(highlightX, highlightY, 0, highlightX, highlightY, radius * 0.9);
-        const highlightAlpha = 0.03 + (drive * 0.06);
+        const radius = (blob.radius / state.gridW) * canvas.width * 1.2;
+        const highlightX = x - (radius * 0.35);
+        const highlightY = y - (radius * 0.35);
+        const highlight = ctx.createRadialGradient(highlightX, highlightY, 0, highlightX, highlightY, radius * 1.0);
+        const highlightAlpha = 0.08 + (drive * 0.12);
         highlight.addColorStop(0, "rgba(255,255,255," + highlightAlpha.toFixed(3) + ")");
-        highlight.addColorStop(0.4, "rgba(255,255,255," + (highlightAlpha * 0.3).toFixed(3) + ")");
+        highlight.addColorStop(0.5, "rgba(255,255,255," + (highlightAlpha * 0.25).toFixed(3) + ")");
         highlight.addColorStop(1, "rgba(255,255,255,0)");
         ctx.fillStyle = highlight;
-        ctx.fillRect(highlightX - radius * 0.9, highlightY - radius * 0.9, radius * 1.8, radius * 1.8);
+        ctx.fillRect(highlightX - radius, highlightY - radius, radius * 2, radius * 2);
       }
       ctx.restore();
 
       ctx.save();
-      ctx.globalCompositeOperation = "screen";
-      ctx.filter = "blur(24px)";
+      ctx.globalCompositeOperation = "lighter";
+      ctx.filter = "blur(30px)";
       for (let i = 0; i < state.blobs.length; i += 1) {
         const blob = state.blobs[i];
         const x = (blob.x / state.gridW) * canvas.width;
         const y = (blob.y / state.gridH) * canvas.height;
-        const radius = (blob.radius / state.gridW) * canvas.width * 3.5;
+        const radius = (blob.radius / state.gridW) * canvas.width * 4.5;
         const bloom = ctx.createRadialGradient(x, y, 0, x, y, radius);
-        const bloomAlpha = 0.06 + (drive * 0.11);
+        const bloomAlpha = 0.14 + (drive * 0.20);
         bloom.addColorStop(0, "rgba(" + Math.round(blob.colorR) + "," + Math.round(blob.colorG) + "," + Math.round(blob.colorB) + "," + bloomAlpha.toFixed(3) + ")");
-        bloom.addColorStop(0.6, "rgba(" + Math.round(blob.colorR) + "," + Math.round(blob.colorG) + "," + Math.round(blob.colorB) + "," + (bloomAlpha * 0.3).toFixed(3) + ")");
+        bloom.addColorStop(0.5, "rgba(" + Math.round(blob.colorR) + "," + Math.round(blob.colorG) + "," + Math.round(blob.colorB) + "," + (bloomAlpha * 0.5).toFixed(3) + ")");
         bloom.addColorStop(1, "rgba(" + Math.round(blob.colorR) + "," + Math.round(blob.colorG) + "," + Math.round(blob.colorB) + ",0)");
         ctx.fillStyle = bloom;
         ctx.fillRect(x - radius, y - radius, radius * 2, radius * 2);
@@ -3387,15 +3369,15 @@ function renderDashboardHtml(config) {
       ctx.save();
       const vignette = ctx.createRadialGradient(
         canvas.width * 0.5,
-        canvas.height * 0.42,
-        canvas.height * 0.05,
+        canvas.height * 0.5,
+        0,
         canvas.width * 0.5,
         canvas.height * 0.5,
-        canvas.width * 0.75
+        Math.max(canvas.width, canvas.height) * 0.8
       );
       vignette.addColorStop(0, "rgba(0,0,0,0)");
-      vignette.addColorStop(0.65, "rgba(0,0,0,0.25)");
-      vignette.addColorStop(1, "rgba(0,0,0,0.55)");
+      vignette.addColorStop(0.8, "rgba(0,0,0,0.1)");
+      vignette.addColorStop(1, "rgba(0,0,0,0.25)");
       ctx.fillStyle = vignette;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.restore();
