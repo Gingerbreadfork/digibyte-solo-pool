@@ -43,7 +43,9 @@ const KNOWN_POOL_TAG_PATTERNS = [
   { name: "Poolin", re: /poolin/i },
   { name: "EMCD", re: /emcd/i },
   { name: "Luxor", re: /luxor/i },
-  { name: "SpiderPool", re: /spiderpool/i }
+  { name: "SpiderPool", re: /spiderpool/i },
+  { name: "Miningcore", re: /miningcore/i },
+  { name: "CKPool", re: /ckpool/i }
 ];
 
 class JobManager extends EventEmitter {
@@ -1509,6 +1511,11 @@ function normalizeRuntimeBattlefieldEntry(entry) {
   const hash = safeNormalizeHex(entry.hash);
   if (!hash) return null;
   const bits = safeNormalizeHex(entry.bits).padStart(8, "0");
+  const coinbaseTagRaw = String(entry.coinbaseTagRaw || "0x").trim().slice(0, 128);
+  const poolNameRaw = String(entry.poolName || "unknown").trim().slice(0, 96);
+  const poolName = poolNameRaw && poolNameRaw.toLowerCase() !== "unknown"
+    ? poolNameRaw
+    : (derivePoolNameFromTag(coinbaseTagRaw) || "unknown");
   return {
     hash,
     height: Math.max(0, Math.floor(Number(entry.height) || 0)),
@@ -1516,8 +1523,8 @@ function normalizeRuntimeBattlefieldEntry(entry) {
     bits,
     difficulty: Math.max(0, Number(entry.difficulty) || 0),
     coinbaseTxid: safeNormalizeHex(entry.coinbaseTxid) || "",
-    coinbaseTagRaw: String(entry.coinbaseTagRaw || "0x").trim().slice(0, 128),
-    poolName: String(entry.poolName || "unknown").trim().slice(0, 96) || "unknown",
+    coinbaseTagRaw,
+    poolName,
     isOurPool: Boolean(entry.isOurPool)
   };
 }
@@ -1526,11 +1533,18 @@ function normalizeCoinbaseScriptSigHex(rawTx) {
   if (!rawTx || typeof rawTx !== "object") return "";
   const vin = Array.isArray(rawTx.vin) ? rawTx.vin : [];
   if (!vin.length || !vin[0] || typeof vin[0] !== "object") return "";
-  return safeNormalizeHex(vin[0].coinbase);
+  const firstVin = vin[0];
+  return safeNormalizeHex(
+    firstVin.coinbase
+      || firstVin.coinbasestr
+      || (firstVin.scriptSig && firstVin.scriptSig.hex)
+      || ""
+  );
 }
 
 function classifyCoinbaseAttribution(coinbaseScriptSigHex, poolTag) {
   const asciiSegments = extractAsciiSegmentsFromCoinbase(coinbaseScriptSigHex);
+  const preferredSegment = pickPreferredCoinbaseTagSegment(asciiSegments);
   const tagRawDefault = coinbaseScriptSigHex
     ? ("0x" + coinbaseScriptSigHex.slice(0, 8))
     : "0x";
@@ -1558,9 +1572,11 @@ function classifyCoinbaseAttribution(coinbaseScriptSigHex, poolTag) {
     }
   }
 
+  const fallbackTagRaw = sanitizeTagRaw(preferredSegment || asciiSegments[0]);
+  const fallbackPoolName = derivePoolNameFromTag(fallbackTagRaw);
   return {
-    poolName: "unknown",
-    tagRaw: sanitizeTagRaw(asciiSegments[0]) || tagRawDefault,
+    poolName: fallbackPoolName || "unknown",
+    tagRaw: fallbackTagRaw || tagRawDefault,
     isOurPool: false
   };
 }
@@ -1603,6 +1619,59 @@ function findFirstMatchingSegment(segments, pattern) {
 function sanitizeTagRaw(value) {
   const raw = String(value || "").trim();
   return raw ? raw.slice(0, 128) : "";
+}
+
+function pickPreferredCoinbaseTagSegment(segments) {
+  if (!Array.isArray(segments) || segments.length === 0) return "";
+  let best = "";
+  let bestScore = Number.NEGATIVE_INFINITY;
+  for (let i = 0; i < segments.length; i += 1) {
+    const candidate = sanitizeTagRaw(segments[i]);
+    if (!candidate) continue;
+    const score = scoreCoinbaseTagSegment(candidate);
+    if (score > bestScore) {
+      bestScore = score;
+      best = candidate;
+    }
+  }
+  return best || sanitizeTagRaw(segments[0]);
+}
+
+function scoreCoinbaseTagSegment(segment) {
+  const s = String(segment || "").trim();
+  if (!s) return Number.NEGATIVE_INFINITY;
+  const lower = s.toLowerCase();
+  let score = 0;
+
+  if (/[a-z]/i.test(s)) score += 2;
+  if (/[/-_ ]/.test(s)) score += 1;
+  if (lower.includes("pool")) score += 4;
+  if (lower.includes("mined")) score += 3;
+  if (lower.includes("mining")) score += 3;
+  if (lower.includes("miner")) score += 2;
+  if (lower.includes("solo")) score += 2;
+  if (lower.includes("hash")) score += 2;
+  if (lower.includes("core")) score += 1;
+  if (s.length >= 4 && s.length <= 32) score += 1;
+  if (/^0x[0-9a-f]+$/i.test(s)) score -= 4;
+  if (/^[a-z0-9]{7,12}$/i.test(s) && !lower.includes("pool") && !lower.includes("mine")) score -= 2;
+  if (/^[1-9a-hj-np-z]{24,48}$/i.test(s)) score -= 3;
+
+  return score;
+}
+
+function derivePoolNameFromTag(tagRaw) {
+  const raw = String(tagRaw || "").trim();
+  if (!raw || /^0x/i.test(raw)) return "";
+  const cleaned = raw
+    .replace(/^\/+/, "")
+    .replace(/\/+$/, "")
+    .replace(/^["']+/, "")
+    .replace(/["']+$/, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!cleaned) return "";
+  return cleaned.slice(0, 96);
 }
 
 function normalizePoolTagNeedle(poolTag) {

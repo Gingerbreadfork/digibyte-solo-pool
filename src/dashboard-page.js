@@ -1295,32 +1295,40 @@ function renderDashboardHtml() {
       padding: 10px 12px;
     }
 
-    .fleet-prob-bar {
-      font-family: var(--mono);
-      font-size: clamp(13px, 1.6vw, 17px);
-      color: var(--cyan);
-      letter-spacing: 0.02em;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .fleet-prob-bar-hint {
-      font-size: 12px;
-      color: var(--ink-2);
-    }
-
     .fleet-prob-foot {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      grid-template-columns: auto auto;
+      justify-content: space-between;
       gap: 10px;
       align-items: center;
     }
 
-    .fleet-week-wrap {
+    .fleet-week-card {
       display: grid;
-      gap: 4px;
+      gap: 3px;
       min-width: 0;
+      justify-items: start;
+      text-align: left;
+      justify-self: start;
+    }
+
+    .fleet-week-value {
+      letter-spacing: 0.04em;
+      font-size: 15px;
+      color: var(--cyan);
+      text-shadow: 0 0 10px rgba(89, 179, 255, 0.3);
+      white-space: nowrap;
+    }
+
+    .fleet-week-hint {
+      font-size: 11px;
+      color: var(--ink-2);
+      line-height: 1.4;
+      text-align: left;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 100%;
     }
 
     .fleet-leading-card {
@@ -1332,6 +1340,10 @@ function renderDashboardHtml() {
       gap: 3px;
       min-width: 0;
       justify-items: end;
+    }
+
+    .fleet-prob-foot > .fleet-leading-card:last-child {
+      justify-self: end;
     }
 
     [data-theme="light"] .fleet-leading-card {
@@ -1377,12 +1389,6 @@ function renderDashboardHtml() {
       overflow: hidden;
       text-overflow: ellipsis;
       max-width: 100%;
-    }
-
-    .luck-stats {
-      display: grid;
-      gap: 8px;
-      align-content: start;
     }
 
     .difficulty-insights {
@@ -1527,35 +1533,6 @@ function renderDashboardHtml() {
       gap: 8px;
       max-height: 260px;
       overflow-y: auto;
-    }
-
-    .spectrometer-head {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 10px;
-      border-bottom: 1px solid var(--line-soft);
-      padding-bottom: 8px;
-    }
-
-    .spectrometer-title {
-      font-size: 10px;
-      letter-spacing: 0.11em;
-      text-transform: uppercase;
-      color: var(--ink-2);
-      font-weight: 700;
-    }
-
-    .spectrometer-meta {
-      font-family: var(--mono);
-      font-size: 11px;
-      color: var(--ink-1);
-    }
-
-    .spectrometer-rows {
-      display: grid;
-      gap: 7px;
-      align-content: start;
     }
 
     .spectrometer-row {
@@ -2136,15 +2113,17 @@ function renderDashboardHtml() {
         justify-items: start;
       }
 
+      .fleet-prob-foot > .fleet-leading-card:last-child {
+        justify-self: start;
+      }
+
       .fleet-leading-label,
       .fleet-leading-text,
       .fleet-leading-hint {
         text-align: left;
       }
 
-      .fleet-week-wrap {
-        justify-items: start;
-      }
+      .fleet-week-card { justify-items: start; }
     }
 
     @media (max-width: 920px) {
@@ -2484,24 +2463,11 @@ function renderDashboardHtml() {
     <section class="grid reveal">
       <article class="card chart-card span-6">
         <div class="chart-head">
-          <div class="title">Share Luck and Best Share</div>
-          <div id="luck-meta" class="meta">progress to block</div>
+          <div class="title">Share Spectrometer</div>
+          <div class="meta" id="top-shares-meta">top 20</div>
         </div>
-        <div class="luck-stats">
-          <div class="luck-item">
-            <div class="luck-label">Poisson Variance</div>
-            <div class="luck-value" id="variance-probability">-</div>
-            <div class="luck-hint" id="variance-hint">Waiting for expected blocks</div>
-          </div>
-        </div>
-        <div class="spectrometer-list">
-          <div class="spectrometer-head">
-            <div class="spectrometer-title">Share Spectrometer</div>
-            <div class="spectrometer-meta" id="top-shares-meta">top 20</div>
-          </div>
-          <div class="spectrometer-rows" id="top-shares-list">
-            <div class="spectrometer-empty">No accepted shares yet</div>
-          </div>
+        <div class="spectrometer-list" id="top-shares-list">
+          <div class="spectrometer-empty">No accepted shares yet</div>
         </div>
       </article>
 
@@ -2565,10 +2531,11 @@ function renderDashboardHtml() {
             </div>
           </div>
           <div class="fleet-prob-expect" id="fleet-prob-expect">Waiting for hashrate and difficulty to estimate expected time-to-block.</div>
-          <div class="fleet-prob-bar" id="fleet-prob-bar">░░░░░░░░░░░░░░░░░░░░░░░░░░░░</div>
           <div class="fleet-prob-foot">
-            <div class="fleet-week-wrap">
-              <div class="fleet-prob-bar-hint" id="fleet-prob-bar-hint">0.0% this week</div>
+            <div class="fleet-leading-card fleet-week-card">
+              <div class="fleet-leading-label">Weekly Block Probability</div>
+              <div class="fleet-leading-value fleet-week-value" id="fleet-prob-bar">░░░░░░░░░░</div>
+              <div class="fleet-leading-text fleet-week-hint" id="fleet-prob-bar-hint">0.0% this week</div>
             </div>
             <div class="fleet-leading-card">
               <div class="fleet-leading-label">Best Leading Zeros (Since Last Block)</div>
@@ -2805,8 +2772,6 @@ function renderDashboardHtml() {
       expectedBlocks: d.getElementById("expected-blocks"),
       expectedBlocksHint: d.getElementById("expected-blocks-hint"),
       expectedBlocksBar: d.getElementById("expected-blocks-bar"),
-      varianceProbability: d.getElementById("variance-probability"),
-      varianceHint: d.getElementById("variance-hint"),
       topSharesMeta: d.getElementById("top-shares-meta"),
       topSharesList: d.getElementById("top-shares-list"),
       networkDifficulty: d.getElementById("network-difficulty"),
@@ -2834,7 +2799,6 @@ function renderDashboardHtml() {
       fleetProbExpect: d.getElementById("fleet-prob-expect"),
       fleetProbBar: d.getElementById("fleet-prob-bar"),
       fleetProbBarHint: d.getElementById("fleet-prob-bar-hint"),
-      luckMeta: d.getElementById("luck-meta"),
       healthTemplate: d.getElementById("health-template"),
       healthRpc: d.getElementById("health-rpc"),
       healthWorkers: d.getElementById("health-workers"),
@@ -4745,29 +4709,6 @@ function renderDashboardHtml() {
         text(refs.expectedBlocksHint, "No accepted share work yet");
       }
 
-      const observedBlocks = Math.max(0, Math.floor(safeNum(derived && derived.blocksFound, 0)));
-      if (expectedBlocks > 0) {
-        const pZero = poissonPmf(0, expectedBlocks);
-        const pAtMostObserved = poissonCdf(observedBlocks, expectedBlocks);
-        const ci68 = poissonCentralInterval(expectedBlocks, 0.68);
-        const ci95 = poissonCentralInterval(expectedBlocks, 0.95);
-        text(refs.luckMeta, "EB " + fmtExpectedBlocks(expectedBlocks) + " • P(0) " + fmtPctFromRatio(pZero));
-
-        if (observedBlocks === 0) {
-          text(refs.varianceProbability, "P(0 blocks) " + fmtPctFromRatio(pZero));
-        } else {
-          text(refs.varianceProbability, "P(<= " + fmtInt(observedBlocks) + " blocks) " + fmtPctFromRatio(pAtMostObserved));
-        }
-        text(
-          refs.varianceHint,
-          "Poisson 68% " + ci68.lo + "-" + ci68.hi + " • 95% " + ci95.lo + "-" + ci95.hi + " blocks"
-        );
-      } else {
-        text(refs.luckMeta, "progress to block");
-        text(refs.varianceProbability, "-");
-        text(refs.varianceHint, "Waiting for expected blocks");
-      }
-
       const topShares = sanitizeTopShares(derived && derived.topShares, 20);
       text(refs.topSharesMeta, "top " + fmtInt(topShares.length) + " / 20");
       if (!topShares.length) {
@@ -4797,94 +4738,6 @@ function renderDashboardHtml() {
         \`;
       }
       refs.topSharesList.innerHTML = html;
-    }
-
-    function poissonPmf(k, lambda) {
-      const safeK = Math.max(0, Math.floor(safeNum(k, 0)));
-      const safeLambda = Math.max(0, safeNum(lambda, 0));
-      if (safeLambda <= 0) return safeK === 0 ? 1 : 0;
-      if (safeLambda > 700) {
-        // For very large lambda, PMF(0) underflows; this approximation is adequate for UI messaging.
-        if (safeK === 0) return 0;
-      }
-      let p = Math.exp(-safeLambda);
-      for (let i = 1; i <= safeK; i += 1) {
-        p *= (safeLambda / i);
-      }
-      return Math.max(0, Math.min(1, p));
-    }
-
-    function poissonCdf(k, lambda) {
-      const safeK = Math.max(0, Math.floor(safeNum(k, 0)));
-      const safeLambda = Math.max(0, safeNum(lambda, 0));
-      if (safeLambda <= 0) return 1;
-      if (safeLambda > 120) {
-        const z = (safeK + 0.5 - safeLambda) / Math.sqrt(safeLambda);
-        return Math.max(0, Math.min(1, normalCdf(z)));
-      }
-      let p = Math.exp(-safeLambda);
-      let cdf = p;
-      for (let i = 1; i <= safeK; i += 1) {
-        p *= (safeLambda / i);
-        cdf += p;
-      }
-      return Math.max(0, Math.min(1, cdf));
-    }
-
-    function poissonCentralInterval(lambda, confidence) {
-      const safeLambda = Math.max(0, safeNum(lambda, 0));
-      const conf = Math.max(0.5, Math.min(0.999, safeNum(confidence, 0.95)));
-      if (safeLambda <= 0) return { lo: 0, hi: 0 };
-
-      if (safeLambda > 120) {
-        const z = approxZForConfidence(conf);
-        const sigma = Math.sqrt(safeLambda);
-        return {
-          lo: Math.max(0, Math.floor(safeLambda - (z * sigma))),
-          hi: Math.max(0, Math.ceil(safeLambda + (z * sigma)))
-        };
-      }
-
-      const tail = (1 - conf) / 2;
-      let k = 0;
-      let p = Math.exp(-safeLambda);
-      let cdf = p;
-      while (cdf < tail && k < 5000) {
-        k += 1;
-        p *= (safeLambda / k);
-        cdf += p;
-      }
-      const lo = k;
-
-      while (cdf < (1 - tail) && k < 5000) {
-        k += 1;
-        p *= (safeLambda / k);
-        cdf += p;
-      }
-      return { lo, hi: k };
-    }
-
-    function approxZForConfidence(confidence) {
-      if (confidence >= 0.995) return 2.81;
-      if (confidence >= 0.99) return 2.58;
-      if (confidence >= 0.98) return 2.33;
-      if (confidence >= 0.95) return 1.96;
-      if (confidence >= 0.9) return 1.64;
-      if (confidence >= 0.8) return 1.28;
-      return 1.0;
-    }
-
-    function normalCdf(z) {
-      const x = safeNum(z, 0) / Math.sqrt(2);
-      return 0.5 * (1 + erf(x));
-    }
-
-    function erf(x) {
-      const sign = x < 0 ? -1 : 1;
-      const ax = Math.abs(x);
-      const t = 1 / (1 + 0.3275911 * ax);
-      const y = 1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-ax * ax);
-      return sign * y;
     }
 
     function classifyLuckMeter(trend, changePct) {
@@ -5067,7 +4920,7 @@ function renderDashboardHtml() {
         text(refs.fleetProbWeek, "-");
         text(refs.fleetProbMonth, "-");
         text(refs.fleetProbExpect, "Waiting for hashrate and difficulty to estimate expected time-to-block.");
-        text(refs.fleetProbBar, "░".repeat(30));
+        text(refs.fleetProbBar, "░".repeat(10));
         text(refs.fleetProbBarHint, "0.0% this week");
         return;
       }
@@ -5093,7 +4946,7 @@ function renderDashboardHtml() {
         text(refs.fleetProbExpect, "Expected time-to-block unavailable.");
       }
 
-      text(refs.fleetProbBar, buildProbabilityBar(weekProb, 30));
+      text(refs.fleetProbBar, buildProbabilityBar(weekProb, 10));
       text(refs.fleetProbBarHint, fmtPctFromRatioFixed(weekProb, 1) + " this week");
     }
 
