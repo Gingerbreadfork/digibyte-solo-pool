@@ -3190,9 +3190,9 @@ function renderDashboardHtml(config) {
         const pulse = 0.85 + (Math.sin((phase * (1.4 + active * 1.8)) + blob.driftPhase) * (0.15 + active * 0.28));
         const coreRadius = blob.radius * pulse;
         const haloRadius = blob.radius * (2.5 + (pulse * 0.6));
-        const activeGain = Math.min(2.5, active + Math.min(1.0, state.flowKick * 0.08));
-        const coreAlpha = (0.35 + (blob.heat * 0.15)) * dt * activeGain;
-        const haloAlpha = (0.12 + (blob.heat * 0.08)) * dt * activeGain;
+        const activeGain = Math.min(1.4, active + Math.min(0.5, state.flowKick * 0.04));
+        const coreAlpha = (0.18 + (blob.heat * 0.08)) * dt * activeGain;
+        const haloAlpha = (0.06 + (blob.heat * 0.04)) * dt * activeGain;
         depositEntropyCircle(state, blob.x, blob.y, coreRadius, blob.colorR, blob.colorG, blob.colorB, coreAlpha);
         depositEntropyCircle(state, blob.x, blob.y, haloRadius, blob.colorR, blob.colorG, blob.colorB, haloAlpha);
 
@@ -3210,7 +3210,7 @@ function renderDashboardHtml(config) {
         const progress = 1 - (burst.lifeMs / burst.maxLifeMs);
         const radius = burst.radius * (1 + (progress * 2.6));
         const fade = Math.max(0, 1 - progress);
-        const alpha = burst.power * fade * fade * 0.28 * dt;
+        const alpha = burst.power * fade * fade * 0.12 * dt;
         depositEntropyCircle(state, burst.x, burst.y, radius, burst.r, burst.g, burst.b, alpha);
       }
 
@@ -3318,7 +3318,7 @@ function renderDashboardHtml(config) {
         const y = (blob.y / state.gridH) * canvas.height;
         const radius = (blob.radius / state.gridW) * canvas.width * 2.8;
         const grad = ctx.createRadialGradient(x, y, 0, x, y, radius);
-        const glowAlpha = 0.18 + (drive * 0.25);
+        const glowAlpha = 0.10 + (drive * 0.14);
         grad.addColorStop(0, "rgba(" + Math.round(blob.colorR) + "," + Math.round(blob.colorG) + "," + Math.round(blob.colorB) + "," + glowAlpha.toFixed(3) + ")");
         grad.addColorStop(0.4, "rgba(" + Math.round(blob.colorR) + "," + Math.round(blob.colorG) + "," + Math.round(blob.colorB) + "," + (glowAlpha * 0.6).toFixed(3) + ")");
         grad.addColorStop(0.7, "rgba(" + Math.round(blob.colorR) + "," + Math.round(blob.colorG) + "," + Math.round(blob.colorB) + "," + (glowAlpha * 0.3).toFixed(3) + ")");
@@ -3338,7 +3338,7 @@ function renderDashboardHtml(config) {
         const highlightX = x - (radius * 0.35);
         const highlightY = y - (radius * 0.35);
         const highlight = ctx.createRadialGradient(highlightX, highlightY, 0, highlightX, highlightY, radius * 1.0);
-        const highlightAlpha = 0.08 + (drive * 0.12);
+        const highlightAlpha = 0.04 + (drive * 0.07);
         highlight.addColorStop(0, "rgba(255,255,255," + highlightAlpha.toFixed(3) + ")");
         highlight.addColorStop(0.5, "rgba(255,255,255," + (highlightAlpha * 0.25).toFixed(3) + ")");
         highlight.addColorStop(1, "rgba(255,255,255,0)");
@@ -3356,7 +3356,7 @@ function renderDashboardHtml(config) {
         const y = (blob.y / state.gridH) * canvas.height;
         const radius = (blob.radius / state.gridW) * canvas.width * 4.5;
         const bloom = ctx.createRadialGradient(x, y, 0, x, y, radius);
-        const bloomAlpha = 0.14 + (drive * 0.20);
+        const bloomAlpha = 0.08 + (drive * 0.12);
         bloom.addColorStop(0, "rgba(" + Math.round(blob.colorR) + "," + Math.round(blob.colorG) + "," + Math.round(blob.colorB) + "," + bloomAlpha.toFixed(3) + ")");
         bloom.addColorStop(0.5, "rgba(" + Math.round(blob.colorR) + "," + Math.round(blob.colorG) + "," + Math.round(blob.colorB) + "," + (bloomAlpha * 0.5).toFixed(3) + ")");
         bloom.addColorStop(1, "rgba(" + Math.round(blob.colorR) + "," + Math.round(blob.colorG) + "," + Math.round(blob.colorB) + ",0)");
@@ -3464,7 +3464,7 @@ function renderDashboardHtml(config) {
             r,
             g,
             b,
-            power: 0.55 + (((b1 ^ b2) & 15) / 22),
+            power: 0.35 + (((b1 ^ b2) & 15) / 30),
             maxLifeMs: 720 + ((b0 % 5) * 120),
             lifeMs: 720 + ((b0 % 5) * 120)
           });
