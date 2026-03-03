@@ -22,7 +22,7 @@ const { buildCoinbaseMerkleBranches, computeMerkleRootFromBranches } = require("
 const { buildBlockHeader, resolveShareVersionHex } = require("./share-crypto");
 const { ZmqHashblockSubscriber } = require("./zmq-hashblock-subscriber");
 
-const MAX_RECENT_BLOCKS = 10;
+const MAX_RECENT_BLOCKS = 5;
 const MAX_NETWORK_BATTLEFIELD = 240;
 const MAX_TX_ARTIFACT_CACHE = 8;
 const MAX_COINBASE_PIECES_CACHE = 32;
@@ -1021,7 +1021,8 @@ class JobManager extends EventEmitter {
       this.emit("blockAccepted", {
         blockHash: shareResult.shareHashHex,
         height: job.template.height,
-        workerName: shareResult.workerName
+        workerName: shareResult.workerName,
+        foundAt
       });
       return { accepted: true, blockHash: shareResult.shareHashHex, nodeResult: null };
     }

@@ -48,6 +48,7 @@ class StratumServer extends EventEmitter {
     this.clients = new Map();
     this.clientSeq = 0;
     this.extranonceCounter = 0n;
+    this.onBlockAccepted = null;
 
     // Rate limiting and connection tracking
     this.connectionsByIp = new Map(); // IP -> Set of client IDs
@@ -73,6 +74,10 @@ class StratumServer extends EventEmitter {
     this.jobManager.on("job", (job) => {
       this.broadcastJob(job);
     });
+    this.onBlockAccepted = (evt) => {
+      this.resetLeadingZerosSinceLastBlock(evt);
+    };
+    this.jobManager.on("blockAccepted", this.onBlockAccepted);
 
     // Cleanup rate limit tracking every minute
     this.rateLimitCleanupInterval = setInterval(() => {
@@ -104,6 +109,10 @@ class StratumServer extends EventEmitter {
     if (this.server) {
       this.server.close();
       this.server = null;
+    }
+    if (this.onBlockAccepted) {
+      this.jobManager.off("blockAccepted", this.onBlockAccepted);
+      this.onBlockAccepted = null;
     }
   }
 
@@ -1599,6 +1608,17 @@ class StratumServer extends EventEmitter {
     this.stats.bestLeadingZerosHash = shareHashHex;
     this.stats.bestLeadingZerosWorker = sanitizeWorkerName(client && client.workerName);
     this.stats.bestLeadingZerosAt = Math.max(0, Math.floor(Number(acceptedAt) || 0));
+  }
+
+  resetLeadingZerosSinceLastBlock(evt) {
+    this.stats.bestLeadingZeros = 0;
+    this.stats.bestLeadingZerosHash = null;
+    this.stats.bestLeadingZerosWorker = null;
+    this.stats.bestLeadingZerosAt = 0;
+    this.logger.info("Reset leading zeros scoreboard after block found", {
+      blockHash: evt && evt.blockHash ? String(evt.blockHash) : null,
+      height: evt && Number.isFinite(evt.height) ? Number(evt.height) : null
+    });
   }
 
   checkRateLimit(ip) {

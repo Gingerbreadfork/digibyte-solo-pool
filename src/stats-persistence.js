@@ -7,7 +7,7 @@ const readline = require("node:readline");
 const SNAPSHOT_FILE = "stats-snapshot.json";
 const WAL_FILE = "stats.wal.ndjson";
 const SNAPSHOT_VERSION = 1;
-const MAX_RECENT_BLOCKS = 10;
+const MAX_RECENT_BLOCKS = 5;
 const MAX_NETWORK_BATTLEFIELD = 240;
 
 const NUMERIC_FIELDS = [

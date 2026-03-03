@@ -394,7 +394,7 @@ class ApiServer {
     const lastFoundBlockAt = this.stats.lastFoundBlockAt;
     const blocksOrphaned = this.stats.blocksOrphaned || 0;
     const totalRewardSats = this.stats.totalRewardSats || 0;
-    const recentBlocks = Array.isArray(this.stats.recentBlocks) ? this.stats.recentBlocks.slice(0, 10) : [];
+    const recentBlocks = Array.isArray(this.stats.recentBlocks) ? this.stats.recentBlocks.slice(0, 5) : [];
     const networkBattlefield = Array.isArray(this.stats.networkBattlefield)
       ? this.stats.networkBattlefield.slice(0, 240)
       : [];

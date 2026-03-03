@@ -974,38 +974,33 @@ function renderDashboardHtml() {
     .block-list {
       display: grid;
       gap: 8px;
-      max-height: 326px;
-      overflow-y: auto;
-      padding-right: 4px;
-      -webkit-overflow-scrolling: touch;
-      overscroll-behavior: contain;
-      align-content: start;
-      min-height: 0;
+      grid-template-rows: repeat(5, minmax(0, 1fr));
+      min-height: 430px;
+      height: 430px;
+      max-height: 430px;
+      overflow: hidden;
+      align-content: stretch;
+      min-width: 0;
     }
 
-    .block-list::-webkit-scrollbar,
     .worker-list::-webkit-scrollbar {
       width: 8px;
     }
 
-    .block-list::-webkit-scrollbar-thumb,
     .worker-list::-webkit-scrollbar-thumb {
       background: rgba(255, 255, 255, 0.22);
       border-radius: 999px;
     }
 
-    [data-theme="light"] .block-list::-webkit-scrollbar-thumb,
     [data-theme="light"] .worker-list::-webkit-scrollbar-thumb {
       background: rgba(79, 98, 126, 0.34);
     }
 
-    .block-list::-webkit-scrollbar-track,
     .worker-list::-webkit-scrollbar-track {
       background: rgba(255, 255, 255, 0.06);
       border-radius: 999px;
     }
 
-    [data-theme="light"] .block-list::-webkit-scrollbar-track,
     [data-theme="light"] .worker-list::-webkit-scrollbar-track {
       background: rgba(79, 98, 126, 0.12);
     }
@@ -1074,13 +1069,15 @@ function renderDashboardHtml() {
     .battlefield-list {
       display: grid;
       gap: 8px;
-      max-height: 326px;
-      overflow-y: auto;
+      grid-template-rows: repeat(5, minmax(0, 1fr));
+      min-height: 300px;
+      height: 300px;
+      max-height: 300px;
+      overflow: hidden;
       padding-right: 4px;
       -webkit-overflow-scrolling: touch;
       overscroll-behavior: contain;
       align-content: start;
-      min-height: 0;
     }
 
     .battlefield-list::-webkit-scrollbar {
@@ -1272,10 +1269,90 @@ function renderDashboardHtml() {
       color: var(--ink-2);
     }
 
+    .fleet-prob-foot {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 10px;
+      align-items: center;
+    }
+
+    .fleet-week-wrap {
+      display: grid;
+      gap: 4px;
+      min-width: 0;
+    }
+
+    .fleet-leading-card {
+      border: 1px solid var(--line-soft);
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.02);
+      padding: 8px 10px;
+      display: grid;
+      gap: 3px;
+      min-width: 0;
+      justify-items: end;
+    }
+
+    [data-theme="light"] .fleet-leading-card {
+      background: rgba(255, 255, 255, 0.82);
+      border-color: rgba(42, 60, 85, 0.11);
+    }
+
+    .fleet-leading-label {
+      font-size: 10px;
+      letter-spacing: 0.11em;
+      text-transform: uppercase;
+      color: var(--ink-2);
+      font-weight: 700;
+      text-align: right;
+      line-height: 1.3;
+    }
+
+    .fleet-leading-value {
+      font-family: var(--mono);
+      letter-spacing: 0.04em;
+      font-size: 15px;
+      color: var(--cyan);
+      text-shadow: 0 0 10px rgba(89, 179, 255, 0.3);
+      white-space: nowrap;
+    }
+
+    .fleet-leading-text {
+      font-size: 11px;
+      color: var(--ink-2);
+      text-align: right;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 100%;
+    }
+
+    .fleet-leading-hint {
+      font-size: 11px;
+      color: var(--ink-2);
+      line-height: 1.4;
+      text-align: right;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 100%;
+    }
+
     .luck-stats {
       display: grid;
       gap: 8px;
       align-content: start;
+    }
+
+    .difficulty-insights {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      align-content: start;
+    }
+
+    .difficulty-insights .luck-item {
+      margin: 0;
     }
 
     .luck-item {
@@ -1965,6 +2042,29 @@ function renderDashboardHtml() {
       .fleet-prob-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
       }
+
+      .difficulty-insights {
+        grid-template-columns: 1fr;
+      }
+
+      .fleet-prob-foot {
+        grid-template-columns: 1fr;
+        gap: 6px;
+      }
+
+      .fleet-leading-card {
+        justify-items: start;
+      }
+
+      .fleet-leading-label,
+      .fleet-leading-text,
+      .fleet-leading-hint {
+        text-align: left;
+      }
+
+      .fleet-week-wrap {
+        justify-items: start;
+      }
     }
 
     @media (max-width: 920px) {
@@ -2027,7 +2127,12 @@ function renderDashboardHtml() {
         grid-template-columns: 1fr;
       }
 
-      .block-list,
+      .block-list {
+        min-height: 360px;
+        height: 360px;
+        max-height: 360px;
+      }
+
       .battlefield-list,
       .worker-list {
         max-height: 320px;
@@ -2293,12 +2398,6 @@ function renderDashboardHtml() {
             <div class="luck-hint" id="ttb-hint">Based on current hashrate</div>
           </div>
           <div class="luck-item">
-            <div class="luck-label">Your Best Leading Zeros</div>
-            <div class="luck-value zeros-bar" id="leading-zeros-bar">-</div>
-            <div class="luck-hint" id="leading-zeros-text">Need a share hash to start scoring</div>
-            <div class="luck-hint" id="leading-zeros-hint">Target unknown</div>
-          </div>
-          <div class="luck-item">
             <div class="luck-label">Expected Blocks (EB)</div>
             <div class="luck-value" id="expected-blocks">-</div>
             <div class="luck-hint" id="expected-blocks-hint">No accepted share work yet</div>
@@ -2315,16 +2414,6 @@ function renderDashboardHtml() {
             <div class="luck-label">SHA256d Difficulty</div>
             <div class="luck-value" id="network-difficulty">-</div>
             <div class="luck-hint" id="network-difficulty-hint">Waiting for templates</div>
-          </div>
-          <div class="luck-item">
-            <div class="luck-label">Difficulty Trend</div>
-            <div class="luck-value" id="difficulty-trend">-</div>
-            <div class="luck-hint" id="difficulty-trend-hint">rolling window</div>
-          </div>
-          <div class="luck-item" id="luck-meter-card">
-            <div class="luck-label">Luck Meter</div>
-            <div class="luck-value" id="luck-meter">-</div>
-            <div class="luck-hint" id="luck-meter-hint">Monitoring difficulty changes</div>
           </div>
         </div>
         <div class="spectrometer-list">
@@ -2343,9 +2432,7 @@ function renderDashboardHtml() {
           <div class="title">Recent Blocks</div>
           <div id="blocks-meta" class="meta">-</div>
         </div>
-        <div class="block-list" id="block-list">
-          <div class="empty-state">No blocks found yet</div>
-        </div>
+        <div class="block-list" id="block-list"></div>
       </article>
     </section>
 
@@ -2401,7 +2488,17 @@ function renderDashboardHtml() {
           </div>
           <div class="fleet-prob-expect" id="fleet-prob-expect">Waiting for hashrate and difficulty to estimate expected time-to-block.</div>
           <div class="fleet-prob-bar" id="fleet-prob-bar">░░░░░░░░░░░░░░░░░░░░░░░░░░░░</div>
-          <div class="fleet-prob-bar-hint" id="fleet-prob-bar-hint">0.0% this week</div>
+          <div class="fleet-prob-foot">
+            <div class="fleet-week-wrap">
+              <div class="fleet-prob-bar-hint" id="fleet-prob-bar-hint">0.0% this week</div>
+            </div>
+            <div class="fleet-leading-card">
+              <div class="fleet-leading-label">Best Leading Zeros (Since Last Block)</div>
+              <div class="fleet-leading-value" id="leading-zeros-bar">░░░░░░░░░░</div>
+              <div class="fleet-leading-text" id="leading-zeros-text">0 of ? needed</div>
+              <div class="fleet-leading-hint" id="leading-zeros-hint">Awaiting shares</div>
+            </div>
+          </div>
         </div>
       </article>
     </section>
@@ -2448,6 +2545,18 @@ function renderDashboardHtml() {
           <div id="difficulty-chart-meta" class="meta">waiting for templates</div>
         </div>
         <div class="chart-wrap"><canvas id="difficulty-chart" aria-label="SHA256d difficulty chart"></canvas></div>
+        <div class="difficulty-insights">
+          <div class="luck-item" id="difficulty-trend-card">
+            <div class="luck-label">Difficulty Trend</div>
+            <div class="luck-value" id="difficulty-trend">-</div>
+            <div class="luck-hint" id="difficulty-trend-hint">rolling window</div>
+          </div>
+          <div class="luck-item" id="luck-meter-card">
+            <div class="luck-label">Luck Meter</div>
+            <div class="luck-value" id="luck-meter">-</div>
+            <div class="luck-hint" id="luck-meter-hint">Monitoring difficulty changes</div>
+          </div>
+        </div>
       </article>
     </section>
 
@@ -2500,7 +2609,7 @@ function renderDashboardHtml() {
     </section>
 
     <div class="footer">
-      <span id="foot-net">Waiting for data…</span>
+      <span id="foot-net"></span>
     </div>
   </main>
 
@@ -2511,7 +2620,7 @@ function renderDashboardHtml() {
 
     const MAX_POINTS = 120;
     const MAX_TIMELINE_ITEMS = 60;
-    const MAX_BLOCKS_HISTORY = 10;
+    const MAX_BLOCKS_HISTORY = 5;
     const MAX_NETWORK_BATTLEFIELD = 240;
     const DEFAULT_ADDRESS_EXPLORER_BASE = "https://digiexplorer.info/address/";
     const SHARE_TIME_FORMATTER = new Intl.DateTimeFormat(undefined, {
@@ -2623,6 +2732,7 @@ function renderDashboardHtml() {
       topSharesList: d.getElementById("top-shares-list"),
       networkDifficulty: d.getElementById("network-difficulty"),
       networkDifficultyHint: d.getElementById("network-difficulty-hint"),
+      difficultyTrendCard: d.getElementById("difficulty-trend-card"),
       difficultyTrend: d.getElementById("difficulty-trend"),
       difficultyTrendHint: d.getElementById("difficulty-trend-hint"),
       luckMeterCard: d.getElementById("luck-meter-card"),
@@ -4065,6 +4175,7 @@ function renderDashboardHtml() {
       const state = lastError ? "err" : (recentFetchAge <= (d.hidden ? 12000 : 4000) ? "ok" : "warn");
       refs.statusDot.className = "dot " + state;
       text(refs.statusText, state === "ok" ? "Live" : state === "warn" ? "Lagging" : "Error");
+      refs.footNet.style.display = "none";
 
       const hashrateText = d0.poolHashrate > 0 ? '~' + fmtHashrate(d0.poolHashrate) : 'warming up';
       text(refs.poolHashrate, hashrateText);
@@ -4112,7 +4223,12 @@ function renderDashboardHtml() {
       text(refs.lastFoundHash, s.lastFoundBlockHash || "-");
       text(refs.lastFoundAge, fmtTsAge(s.lastFoundBlockAt));
       text(refs.runtimeDetailMeta, "seq " + sampleSeq);
-      text(refs.footNet, lastError ? ("Connection error: " + lastError) : "Connected");
+      if (lastError) {
+        refs.footNet.style.display = "inline";
+        text(refs.footNet, "Connection error: " + lastError);
+      } else {
+        text(refs.footNet, "");
+      }
 
       const shareA = ringToArray(history.sharesAcceptedDelta);
       const shareB = ringToArray(history.sharesRejectedDelta);
@@ -4407,6 +4523,10 @@ function renderDashboardHtml() {
 
       text(refs.difficultyTrend, trend + " " + fmtSignedPct(changePct));
       text(refs.difficultyTrendHint, "window " + fmtInt(safeNum(diff.window, 0)) + " samples");
+      if (refs.difficultyTrendCard) {
+        const trendLevel = trend === "falling" ? "good" : (trend === "rising" ? "warn" : "flat");
+        refs.difficultyTrendCard.className = "luck-item " + trendLevel;
+      }
 
       const luckMeter = classifyLuckMeter(trend, changePct);
       refs.luckMeterCard.className = "luck-item " + luckMeter.level;
@@ -4432,6 +4552,7 @@ function renderDashboardHtml() {
 
     function renderLeadingZerosScoreboard(job, stats, derived, difficulty) {
       const bestLeadingZeros = Math.max(0, Math.floor(safeNum(derived && derived.bestLeadingZeros, 0)));
+      const lastFoundBlockAt = Math.max(0, Math.floor(safeNum(stats && stats.lastFoundBlockAt, 0)));
       const bitsHex = resolveBitsHex(job, stats, difficulty);
       const neededLeadingZeros = estimateNeededLeadingZerosFromBits(bitsHex);
       const bar = buildLeadingZerosBar(bestLeadingZeros, neededLeadingZeros);
@@ -4440,9 +4561,9 @@ function renderDashboardHtml() {
       if (neededLeadingZeros > 0) {
         text(refs.leadingZerosText, bestLeadingZeros + " of " + neededLeadingZeros + " needed");
       } else if (bestLeadingZeros > 0) {
-        text(refs.leadingZerosText, bestLeadingZeros + " best leading zeros so far");
+        text(refs.leadingZerosText, bestLeadingZeros + " best leading zeros");
       } else {
-        text(refs.leadingZerosText, "Need a share hash to start scoring");
+        text(refs.leadingZerosText, "0 of ? needed");
       }
 
       const bestHash = String(derived && derived.bestLeadingZerosHash ? derived.bestLeadingZerosHash : "").trim();
@@ -4452,9 +4573,14 @@ function renderDashboardHtml() {
         ? (bestHash.slice(0, 8) + "..." + bestHash.slice(-8))
         : "no hash";
       const workerLabel = bestWorker || "unknown";
-      const whenLabel = bestAt > 0 ? fmtTsAge(bestAt) + " ago" : "unknown time";
-      const targetLabel = neededLeadingZeros > 0 ? ("target ~" + neededLeadingZeros + " zeros") : "target unavailable";
-      text(refs.leadingZerosHint, targetLabel + " • " + workerLabel + " • " + whenLabel + " • " + shortHash);
+      if (bestLeadingZeros > 0) {
+        const whenLabel = bestAt > 0 ? (fmtTsAge(bestAt) + " ago") : "unknown time";
+        text(refs.leadingZerosHint, workerLabel + " • " + whenLabel + " • " + shortHash);
+      } else if (lastFoundBlockAt > 0) {
+        text(refs.leadingZerosHint, "Tracking since block found " + fmtTsAge(lastFoundBlockAt) + " ago");
+      } else {
+        text(refs.leadingZerosHint, "Tracking since pool start");
+      }
     }
 
     function resolveBitsHex(job, stats, difficulty) {
@@ -4731,15 +4857,17 @@ function renderDashboardHtml() {
       const now = Date.now();
       const confirmed = blocksHistory.filter((b) => b.status === "confirmed").length;
       const orphaned = blocksHistory.filter((b) => b.status === "orphaned").length;
-      text(refs.blocksMeta, blocksHistory.length + " found • " + confirmed + " confirmed • " + orphaned + " orphaned");
+      const visible = Math.min(5, blocksHistory.length);
+      text(refs.blocksMeta, "showing " + visible + " / " + blocksHistory.length + " • " + confirmed + " confirmed • " + orphaned + " orphaned");
 
-      if (blocksHistory.length === 0) {
-        refs.blockList.innerHTML = '<div class="empty-state">No blocks found yet</div>';
+      if (visible === 0) {
+        refs.blockList.innerHTML = "";
         return;
       }
 
       let html = '';
-      for (const block of blocksHistory) {
+      for (let i = 0; i < visible; i += 1) {
+        const block = blocksHistory[i];
         const age = fmtAgeMs(now - block.timestamp);
         const shortHash = block.hash ? block.hash.slice(0, 12) + '...' + block.hash.slice(-12) : 'unknown';
         const statusText = fmtBlockStatus(block);
@@ -4780,7 +4908,8 @@ function renderDashboardHtml() {
       }
 
       let html = "";
-      for (let i = 0; i < list.length && i < 20; i += 1) {
+      const visible = Math.min(5, list.length);
+      for (let i = 0; i < visible; i += 1) {
         const row = list[i];
         const age = row.timestamp > 0 ? (fmtTsAge(row.timestamp) + " ago") : "unknown age";
         const poolName = row.isOurPool ? "YOUR POOL" : (row.poolName || "unknown");
@@ -4799,6 +4928,7 @@ function renderDashboardHtml() {
         \`;
       }
       refs.battlefieldList.innerHTML = html;
+      text(refs.battlefieldMeta, "showing " + visible + " / " + list.length + " recent blocks");
 
       const now = Date.now();
       const horizonMs = 60 * 60 * 1000;
