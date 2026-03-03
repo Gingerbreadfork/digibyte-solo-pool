@@ -811,16 +811,22 @@ function renderDashboardHtml() {
       aspect-ratio: 16 / 9;
       min-height: 220px;
       background:
-        radial-gradient(120% 90% at 50% 30%, rgba(116, 191, 255, 0.09), transparent 60%),
-        rgba(5, 7, 10, 0.95);
-      border-color: rgba(116, 191, 255, 0.2);
+        radial-gradient(130% 105% at 50% 6%, rgba(132, 229, 255, 0.2), transparent 56%),
+        radial-gradient(110% 90% at 12% 100%, rgba(255, 147, 82, 0.09), transparent 64%),
+        radial-gradient(105% 85% at 90% 96%, rgba(113, 255, 188, 0.08), transparent 64%),
+        linear-gradient(180deg, rgba(5, 11, 18, 0.96), rgba(2, 5, 9, 0.98));
+      border-color: rgba(116, 191, 255, 0.28);
+      box-shadow:
+        inset 0 24px 42px rgba(81, 173, 255, 0.08),
+        inset 0 -32px 42px rgba(0, 0, 0, 0.44);
     }
 
     [data-theme="light"] .entropy-wrap {
       background:
-        radial-gradient(120% 90% at 50% 30%, rgba(52, 118, 219, 0.12), transparent 60%),
-        rgba(248, 242, 232, 0.96);
-      border-color: rgba(59, 106, 181, 0.2);
+        radial-gradient(130% 100% at 50% 8%, rgba(89, 154, 242, 0.17), transparent 58%),
+        radial-gradient(90% 80% at 14% 96%, rgba(237, 165, 119, 0.13), transparent 70%),
+        linear-gradient(180deg, rgba(248, 244, 237, 0.98), rgba(241, 233, 220, 0.98));
+      border-color: rgba(59, 106, 181, 0.24);
     }
 
     #entropy-card:fullscreen,
@@ -3019,29 +3025,42 @@ function renderDashboardHtml() {
         ctx,
         offscreen,
         offCtx,
-        gridW: 96,
-        gridH: 56,
+        gridW: 220,
+        gridH: 124,
         field: null,
+        fieldNext: null,
         imageData: null,
         phase: 0,
+        flowKick: 0,
+        miningDrive: 0,
+        miningSignatureA: 2166136261 >>> 0,
+        miningSignatureB: 374761393 >>> 0,
         lastTs: performance.now(),
         seedCount: 0,
         lastSeedAt: 0,
         processedKeys: new Set(),
         processedOrder: [],
+        blobs: [],
+        bursts: [],
         rafId: 0
       };
       state.field = new Float32Array(state.gridW * state.gridH * 3);
+      state.fieldNext = new Float32Array(state.gridW * state.gridH * 3);
+      state.blobs = createEntropyBlobs(state.gridW, state.gridH, 14);
       offscreen.width = state.gridW;
       offscreen.height = state.gridH;
       state.imageData = offCtx.createImageData(state.gridW, state.gridH);
 
-      for (let i = 0; i < state.gridW * state.gridH; i += 1) {
-        const off = i * 3;
-        const base = 10 + (Math.random() * 8);
-        state.field[off] = base;
-        state.field[off + 1] = base * 1.2;
-        state.field[off + 2] = base * 1.5;
+      for (let y = 0; y < state.gridH; y += 1) {
+        for (let x = 0; x < state.gridW; x += 1) {
+          const idx = (y * state.gridW + x) * 3;
+          const tx = x / Math.max(1, state.gridW - 1);
+          const ty = y / Math.max(1, state.gridH - 1);
+          const sky = 1 - ty;
+          state.field[idx] = 8 + (sky * 16) + (Math.sin(tx * Math.PI * 2) * 2);
+          state.field[idx + 1] = 11 + (sky * 19) + (Math.cos((tx * 1.7) + (ty * 2.1)) * 2.6);
+          state.field[idx + 2] = 16 + (sky * 23) + (Math.sin((tx * 2.3) - (ty * 1.8)) * 3);
+        }
       }
 
       const resize = () => {
@@ -3070,41 +3089,170 @@ function renderDashboardHtml() {
       return state;
     }
 
+    function createEntropyBlobs(gridW, gridH, count) {
+      const palette = [
+        [90, 220, 255],
+        [84, 255, 177],
+        [255, 152, 96],
+        [255, 101, 132],
+        [252, 222, 110]
+      ];
+      const total = Math.max(6, Math.floor(safeNum(count, 12)));
+      const blobs = [];
+      for (let i = 0; i < total; i += 1) {
+        const p = palette[i % palette.length];
+        const xFrac = (((i * 47) % total) + 0.5) / total;
+        const yFrac = (((i * 29) % total) + 0.5) / total;
+        blobs.push({
+          x: xFrac * gridW,
+          y: yFrac * gridH,
+          vx: 0,
+          vy: 0,
+          radius: 4.2 + (((i * 11) % 19) * 0.31),
+          heat: 0.82 + (((i * 7) % 10) * 0.025),
+          driftPhase: ((i * 1.6180339887) % 1) * Math.PI * 2,
+          colorR: p[0],
+          colorG: p[1],
+          colorB: p[2]
+        });
+      }
+      return blobs;
+    }
+
     function advanceEntropyLamp(state, ts) {
-      if (!state || !state.field) return;
-      const dt = Math.max(8, Math.min(64, ts - state.lastTs));
+      if (!state || !state.field || !state.fieldNext) return;
+      const dtMs = Math.max(8, Math.min(56, ts - state.lastTs));
+      const dt = dtMs / 16.6667;
       state.lastTs = ts;
-      state.phase += dt * 0.0007;
+      const drive = Math.max(0, safeNum(state.miningDrive, 0));
+      const sigA = state.miningSignatureA >>> 0;
+      const sigB = state.miningSignatureB >>> 0;
+      const sigAUnit = (sigA & 1023) / 1023;
+      const sigBUnit = (sigB & 1023) / 1023;
+      const active = Math.min(1.35, drive + Math.min(0.45, state.flowKick * 0.035));
+      state.phase += (dtMs * (active * 0.00095)) + (state.flowKick * 0.00007);
+      state.flowKick *= 0.985;
 
       const w = state.gridW;
       const h = state.gridH;
       const cells = w * h;
       const field = state.field;
       const phase = state.phase;
+
       for (let i = 0; i < cells; i += 1) {
         const x = i % w;
         const y = (i / w) | 0;
-        const waveA = Math.sin((x * 0.17) + phase);
-        const waveB = Math.cos((y * 0.13) - (phase * 1.2));
-        const waveC = Math.sin(((x + y) * 0.08) + (phase * 0.7));
-        const drift = (waveA + waveB + waveC) * 0.45;
+        const sigWarp = ((sigAUnit - 0.5) * 0.08) + ((sigBUnit - 0.5) * 0.05);
+        const waveA = Math.sin((x * (0.11 + sigWarp)) + (phase * (0.9 + (active * 0.9))));
+        const waveB = Math.cos((y * (0.1 + (sigBUnit * 0.04))) - (phase * (1.2 + (active * 1.1))));
+        const waveC = Math.sin(((x + y) * (0.055 + (sigAUnit * 0.02))) + (phase * (0.65 + (active * 0.8))));
+        const drift = (waveA + waveB + waveC) * 0.48;
+        const lift = Math.max(0, (1 - (y / Math.max(1, h - 1))) * 10);
         const off = i * 3;
-        field[off] = clamp255((field[off] * 0.994) + (drift * 1.3));
-        field[off + 1] = clamp255((field[off + 1] * 0.994) + (drift * 1.15));
-        field[off + 2] = clamp255((field[off + 2] * 0.994) + (drift * 1.55));
+        const baseHeat = active * 8.5;
+        field[off] = clamp255((field[off] * 0.972) + (baseHeat * 0.9) + (drift * (1.8 + active * 2.4)) + (lift * 0.16 * active));
+        field[off + 1] = clamp255((field[off + 1] * 0.973) + (baseHeat * 1.0) + (drift * (2.0 + active * 2.6)) + (lift * 0.2 * active));
+        field[off + 2] = clamp255((field[off + 2] * 0.974) + (baseHeat * 1.1) + (drift * (2.3 + active * 2.9)) + (lift * 0.25 * active));
       }
 
-      const stirCount = Math.max(24, Math.floor((state.seedCount > 0 ? 120 : 40) * (dt / 16)));
-      for (let i = 0; i < stirCount; i += 1) {
-        const idx = (Math.random() * cells) | 0;
-        const right = (idx % w === (w - 1)) ? (idx - (w - 1)) : (idx + 1);
-        const down = (idx >= cells - w) ? (idx % w) : (idx + w);
-        const a = idx * 3;
-        const b = right * 3;
-        const c = down * 3;
-        field[a] = clamp255((field[a] * 0.5) + (field[b] * 0.25) + (field[c] * 0.25));
-        field[a + 1] = clamp255((field[a + 1] * 0.5) + (field[b + 1] * 0.25) + (field[c + 1] * 0.25));
-        field[a + 2] = clamp255((field[a + 2] * 0.5) + (field[b + 2] * 0.25) + (field[c + 2] * 0.25));
+      const blobs = state.blobs;
+      for (let i = 0; i < blobs.length; i += 1) {
+        const blob = blobs[i];
+        const sigByteA = (sigA >>> ((i * 5) % 24)) & 255;
+        const sigByteB = (sigB >>> ((i * 7) % 24)) & 255;
+        const sigPhase = ((sigByteA / 255) * Math.PI * 2);
+        const steerGain = active * 0.065;
+        const steerX = Math.sin((phase * (1.2 + drive)) + blob.driftPhase + sigPhase + (blob.y * 0.08)) * steerGain;
+        const steerY = Math.cos((phase * (1.05 + drive * 1.2)) - blob.driftPhase - sigPhase + (blob.x * 0.07)) * steerGain;
+        blob.vx = (blob.vx + (steerX * dt)) * 0.986;
+        blob.vy = (blob.vy + (steerY * dt)) * 0.986;
+        blob.vx = Math.max(-1.2, Math.min(1.2, blob.vx));
+        blob.vy = Math.max(-1.2, Math.min(1.2, blob.vy));
+        blob.x += blob.vx * dt * (active * 2.1);
+        blob.y += blob.vy * dt * (active * 2.1);
+
+        if (blob.x < -blob.radius) blob.x = w + blob.radius;
+        else if (blob.x > w + blob.radius) blob.x = -blob.radius;
+        if (blob.y < -blob.radius) blob.y = h + blob.radius;
+        else if (blob.y > h + blob.radius) blob.y = -blob.radius;
+
+        const targetRadius = 3.6 + ((sigByteB / 255) * 7.8) + (drive * 2.4);
+        blob.radius = (blob.radius * 0.972) + (targetRadius * 0.028);
+        const pulse = 0.82 + (Math.sin((phase * (1.4 + active * 1.8)) + blob.driftPhase) * (0.12 + active * 0.22));
+        const coreRadius = blob.radius * pulse;
+        const haloRadius = blob.radius * (1.7 + (pulse * 0.35));
+        const activeGain = Math.min(1.4, active + Math.min(0.5, state.flowKick * 0.04));
+        const coreAlpha = (0.09 + (blob.heat * 0.03)) * dt * activeGain;
+        const haloAlpha = (0.028 + (blob.heat * 0.012)) * dt * activeGain;
+        depositEntropyCircle(state, blob.x, blob.y, coreRadius, blob.colorR, blob.colorG, blob.colorB, coreAlpha);
+        depositEntropyCircle(state, blob.x, blob.y, haloRadius, blob.colorR, blob.colorG, blob.colorB, haloAlpha);
+
+        const restHeat = 0.72 + (drive * 0.95) + (((sigByteA ^ sigByteB) & 15) * 0.006);
+        blob.heat = (blob.heat * 0.988) + (restHeat * 0.012);
+      }
+
+      for (let i = state.bursts.length - 1; i >= 0; i -= 1) {
+        const burst = state.bursts[i];
+        burst.lifeMs -= dtMs;
+        if (burst.lifeMs <= 0) {
+          state.bursts.splice(i, 1);
+          continue;
+        }
+        const progress = 1 - (burst.lifeMs / burst.maxLifeMs);
+        const radius = burst.radius * (1 + (progress * 2.6));
+        const fade = Math.max(0, 1 - progress);
+        const alpha = burst.power * fade * fade * 0.28 * dt;
+        depositEntropyCircle(state, burst.x, burst.y, radius, burst.r, burst.g, burst.b, alpha);
+      }
+
+      const next = state.fieldNext;
+      for (let y = 0; y < h; y += 1) {
+        const yUp = y > 0 ? (y - 1) : (h - 1);
+        const yDown = y < (h - 1) ? (y + 1) : 0;
+        for (let x = 0; x < w; x += 1) {
+          const xLeft = x > 0 ? (x - 1) : (w - 1);
+          const xRight = x < (w - 1) ? (x + 1) : 0;
+          const idx = ((y * w) + x) * 3;
+          const left = ((y * w) + xLeft) * 3;
+          const right = ((y * w) + xRight) * 3;
+          const up = ((yUp * w) + x) * 3;
+          const down = ((yDown * w) + x) * 3;
+
+          next[idx] = (field[idx] * 0.76) + ((field[left] + field[right] + field[up] + field[down]) * 0.06);
+          next[idx + 1] = (field[idx + 1] * 0.76) + ((field[left + 1] + field[right + 1] + field[up + 1] + field[down + 1]) * 0.06);
+          next[idx + 2] = (field[idx + 2] * 0.76) + ((field[left + 2] + field[right + 2] + field[up + 2] + field[down + 2]) * 0.06);
+        }
+      }
+      state.field = next;
+      state.fieldNext = field;
+    }
+
+    function depositEntropyCircle(state, cx, cy, radius, r, g, b, alpha) {
+      const w = state.gridW;
+      const h = state.gridH;
+      const field = state.field;
+      const a = Math.max(0, Math.min(1, safeNum(alpha, 0)));
+      if (a <= 0 || radius <= 0) return;
+
+      const x0 = Math.max(0, Math.floor(cx - radius - 1));
+      const x1 = Math.min(w - 1, Math.ceil(cx + radius + 1));
+      const y0 = Math.max(0, Math.floor(cy - radius - 1));
+      const y1 = Math.min(h - 1, Math.ceil(cy + radius + 1));
+      const r2 = radius * radius;
+      const falloff = 2 / Math.max(1, r2);
+
+      for (let y = y0; y <= y1; y += 1) {
+        const dy = (y - cy);
+        for (let x = x0; x <= x1; x += 1) {
+          const dx = (x - cx);
+          const d2 = (dx * dx) + (dy * dy);
+          if (d2 > r2) continue;
+          const weight = Math.exp(-d2 * falloff) * a;
+          const off = ((y * w) + x) * 3;
+          field[off] = clamp255((field[off] * (1 - weight)) + (r * weight));
+          field[off + 1] = clamp255((field[off + 1] * (1 - weight)) + (g * weight));
+          field[off + 2] = clamp255((field[off + 2] * (1 - weight)) + (b * weight));
+        }
       }
     }
 
@@ -3113,18 +3261,72 @@ function renderDashboardHtml() {
       const { imageData, field, offCtx, ctx, offscreen, canvas } = state;
       const pixels = imageData.data;
       const cells = state.gridW * state.gridH;
+      const sigA = state.miningSignatureA >>> 0;
+      const sigB = state.miningSignatureB >>> 0;
+      const sigAUnit = (sigA & 1023) / 1023;
+      const sigBUnit = (sigB & 1023) / 1023;
+      const drive = Math.max(0, safeNum(state.miningDrive, 0));
       for (let i = 0; i < cells; i += 1) {
         const src = i * 3;
         const dst = i * 4;
-        pixels[dst] = clamp255(field[src]);
-        pixels[dst + 1] = clamp255(field[src + 1]);
-        pixels[dst + 2] = clamp255(field[src + 2]);
+        const r = field[src];
+        const g = field[src + 1];
+        const b = field[src + 2];
+        const lum = (r + g + b) / 3;
+        const chroma = Math.abs(r - g) + Math.abs(g - b) + Math.abs(b - r);
+        const x = i % state.gridW;
+        const contourWave = Math.sin((lum * 0.085) + (x * 0.032) + (sigAUnit * Math.PI * 2));
+        const contour = Math.pow(Math.max(0, contourWave), 7) * (95 + drive * 70);
+        const tone = lum + (chroma * (0.2 + drive * 0.18)) + contour;
+        pixels[dst] = clamp255((r * 0.74) + (tone * (0.24 + sigAUnit * 0.28)));
+        pixels[dst + 1] = clamp255((g * 0.79) + (tone * (0.2 + sigBUnit * 0.24)));
+        pixels[dst + 2] = clamp255((b * 0.68) + (tone * (0.18 + ((sigAUnit + sigBUnit) * 0.12))));
         pixels[dst + 3] = 255;
       }
       offCtx.putImageData(imageData, 0, 0);
       ctx.imageSmoothingEnabled = true;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(offscreen, 0, 0, canvas.width, canvas.height);
+
+      ctx.save();
+      ctx.globalCompositeOperation = "screen";
+      for (let i = 0; i < state.blobs.length; i += 1) {
+        const blob = state.blobs[i];
+        const x = (blob.x / state.gridW) * canvas.width;
+        const y = (blob.y / state.gridH) * canvas.height;
+        const radius = (blob.radius / state.gridW) * canvas.width * 2.4;
+        const grad = ctx.createRadialGradient(x, y, 0, x, y, radius);
+        const glowAlpha = 0.06 + (drive * 0.14);
+        grad.addColorStop(0, "rgba(" + Math.round(blob.colorR) + "," + Math.round(blob.colorG) + "," + Math.round(blob.colorB) + "," + glowAlpha.toFixed(3) + ")");
+        grad.addColorStop(0.6, "rgba(" + Math.round(blob.colorR) + "," + Math.round(blob.colorG) + "," + Math.round(blob.colorB) + "," + (glowAlpha * 0.35).toFixed(3) + ")");
+        grad.addColorStop(1, "rgba(" + Math.round(blob.colorR) + "," + Math.round(blob.colorG) + "," + Math.round(blob.colorB) + ",0)");
+        ctx.fillStyle = grad;
+        ctx.fillRect(x - radius, y - radius, radius * 2, radius * 2);
+      }
+      ctx.restore();
+
+      ctx.save();
+      const topGlow = ctx.createLinearGradient(0, 0, 0, canvas.height);
+      topGlow.addColorStop(0, "rgba(146, 232, 255, 0.08)");
+      topGlow.addColorStop(0.45, "rgba(18, 24, 34, 0.02)");
+      topGlow.addColorStop(1, "rgba(2, 4, 8, 0.24)");
+      ctx.fillStyle = topGlow;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      const vignette = ctx.createRadialGradient(
+        canvas.width * 0.5,
+        canvas.height * 0.42,
+        canvas.height * 0.1,
+        canvas.width * 0.5,
+        canvas.height * 0.5,
+        canvas.width * 0.72
+      );
+      vignette.addColorStop(0, "rgba(0,0,0,0)");
+      vignette.addColorStop(0.72, "rgba(0,0,0,0.18)");
+      vignette.addColorStop(1, "rgba(0,0,0,0.34)");
+      ctx.fillStyle = vignette;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.restore();
     }
 
     function updateEntropyLampFromSamples(samples, poolHashrate) {
@@ -3150,6 +3352,13 @@ function renderDashboardHtml() {
         seededThisTick += 1;
       }
 
+      const hashrate = Math.max(0, safeNum(poolHashrate, 0));
+      const hashPowerNorm = Math.max(0, Math.min(1, Math.log10(hashrate + 1) / 7));
+      const seedPulseNorm = Math.max(0, Math.min(1, seededThisTick / 8));
+      const targetDrive = Math.max(0, Math.min(1.4, (hashPowerNorm * 1.05) + (seedPulseNorm * 0.95)));
+      entropyLamp.miningDrive = (entropyLamp.miningDrive * 0.82) + (targetDrive * 0.18);
+      entropyLamp.flowKick += (seedPulseNorm * 0.65) + (hashPowerNorm * 0.22);
+
       if (entropyLamp.seedCount > 0) {
         text(
           refs.entropyMeta,
@@ -3166,9 +3375,11 @@ function renderDashboardHtml() {
     function seedEntropyLampFromHash(state, hashHex) {
       const bytes = hexToBytes(hashHex);
       if (!bytes.length) return;
+      mixEntropyLampSignature(state, bytes);
       const w = state.gridW;
       const h = state.gridH;
       const cells = w * h;
+      state.flowKick += 1 + ((bytes[0] || 0) / 90);
       for (let i = 0; i < bytes.length; i += 1) {
         const b0 = bytes[i];
         const b1 = bytes[(i + 7) % bytes.length];
@@ -3190,6 +3401,34 @@ function renderDashboardHtml() {
         for (let n = 0; n < neighbors.length; n += 1) {
           blendEntropyCell(state, neighbors[n], r, g, b, 0.24);
         }
+
+        if ((i % 6) === 0) {
+          state.bursts.push({
+            x: x + (((b2 & 15) / 15) - 0.5),
+            y: y + (((b1 & 15) / 15) - 0.5),
+            radius: 1.2 + (((b0 ^ b2) & 31) / 10),
+            r,
+            g,
+            b,
+            power: 0.55 + (((b1 ^ b2) & 15) / 22),
+            maxLifeMs: 720 + ((b0 % 5) * 120),
+            lifeMs: 720 + ((b0 % 5) * 120)
+          });
+        }
+
+        if (state.blobs && state.blobs.length) {
+          const blob = state.blobs[(b0 + i) % state.blobs.length];
+          blob.heat = Math.min(2.4, blob.heat + (0.2 + (b2 / 255) * 0.7));
+          blob.vx += ((b1 / 255) - 0.5) * 0.4;
+          blob.vy += ((b2 / 255) - 0.5) * 0.4;
+          blob.colorR = clamp255((blob.colorR * 0.88) + (r * 0.12));
+          blob.colorG = clamp255((blob.colorG * 0.88) + (g * 0.12));
+          blob.colorB = clamp255((blob.colorB * 0.88) + (b * 0.12));
+        }
+      }
+
+      if (state.bursts.length > 120) {
+        state.bursts.splice(0, state.bursts.length - 120);
       }
     }
 
@@ -3210,6 +3449,28 @@ function renderDashboardHtml() {
         out[i] = parseInt(padded.slice(i * 2, (i * 2) + 2), 16) & 255;
       }
       return out;
+    }
+
+    function mixEntropyLampSignature(state, bytes) {
+      if (!state || !Array.isArray(bytes) || bytes.length === 0) return;
+      let mixA = 2166136261 >>> 0;
+      let mixB = 374761393 >>> 0;
+      for (let i = 0; i < bytes.length; i += 1) {
+        const b = bytes[i] & 255;
+        mixA ^= b;
+        mixA = Math.imul(mixA, 16777619) >>> 0;
+        mixB ^= ((b << ((i % 3) * 8)) >>> 0);
+        mixB = Math.imul(rotl32(mixB, 5), 2246822519) >>> 0;
+      }
+      state.miningSignatureA = Math.imul((state.miningSignatureA ^ mixA) >>> 0, 1597334677) >>> 0;
+      state.miningSignatureB = Math.imul((state.miningSignatureB ^ mixB) >>> 0, 3812015801) >>> 0;
+      state.miningDrive = Math.min(1.45, (state.miningDrive * 0.9) + 0.16);
+    }
+
+    function rotl32(value, bits) {
+      const v = value >>> 0;
+      const b = bits & 31;
+      return ((v << b) | (v >>> (32 - b))) >>> 0;
     }
 
     function clamp255(value) {
