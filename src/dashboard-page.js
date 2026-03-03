@@ -1297,10 +1297,14 @@ function renderDashboardHtml() {
 
     .fleet-prob-foot {
       display: grid;
-      grid-template-columns: auto auto;
-      justify-content: space-between;
-      gap: 10px;
-      align-items: center;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      align-items: stretch;
+    }
+
+    .fleet-prob-foot > .fleet-leading-card {
+      width: 100%;
+      min-height: 100px;
     }
 
     .fleet-week-card {
@@ -1309,7 +1313,7 @@ function renderDashboardHtml() {
       min-width: 0;
       justify-items: start;
       text-align: left;
-      justify-self: start;
+      justify-self: stretch;
     }
 
     .fleet-week-value {
@@ -1331,6 +1335,12 @@ function renderDashboardHtml() {
       max-width: 100%;
     }
 
+    .fleet-week-card .fleet-leading-label,
+    .fleet-week-card .fleet-leading-text,
+    .fleet-week-card .fleet-leading-hint {
+      text-align: left;
+    }
+
     .fleet-leading-card {
       border: 1px solid var(--line-soft);
       border-radius: 12px;
@@ -1343,7 +1353,7 @@ function renderDashboardHtml() {
     }
 
     .fleet-prob-foot > .fleet-leading-card:last-child {
-      justify-self: end;
+      justify-self: stretch;
     }
 
     [data-theme="light"] .fleet-leading-card {
@@ -1530,9 +1540,10 @@ function renderDashboardHtml() {
         rgba(12, 12, 12, 0.72);
       padding: 10px;
       display: grid;
-      gap: 8px;
-      max-height: 260px;
-      overflow-y: auto;
+      gap: 7px;
+      min-height: 286px;
+      overflow: hidden;
+      align-content: start;
     }
 
     .spectrometer-row {
@@ -1542,6 +1553,11 @@ function renderDashboardHtml() {
       padding: 7px 8px;
       display: grid;
       gap: 4px;
+    }
+
+    .spectrometer-row.placeholder {
+      border-style: dashed;
+      opacity: 0.68;
     }
 
     .spectrometer-row-main {
@@ -2464,7 +2480,7 @@ function renderDashboardHtml() {
       <article class="card chart-card span-6">
         <div class="chart-head">
           <div class="title">Share Spectrometer</div>
-          <div class="meta" id="top-shares-meta">top 20</div>
+          <div class="meta" id="top-shares-meta">last 5</div>
         </div>
         <div class="spectrometer-list" id="top-shares-list">
           <div class="spectrometer-empty">No accepted shares yet</div>
@@ -2536,6 +2552,7 @@ function renderDashboardHtml() {
               <div class="fleet-leading-label">Weekly Block Probability</div>
               <div class="fleet-leading-value fleet-week-value" id="fleet-prob-bar">░░░░░░░░░░</div>
               <div class="fleet-leading-text fleet-week-hint" id="fleet-prob-bar-hint">0.0% this week</div>
+              <div class="fleet-leading-hint fleet-week-hint" id="fleet-prob-bar-detail">Chance of >=1 block in next 7 days</div>
             </div>
             <div class="fleet-leading-card">
               <div class="fleet-leading-label">Best Leading Zeros (Since Last Block)</div>
@@ -2799,6 +2816,7 @@ function renderDashboardHtml() {
       fleetProbExpect: d.getElementById("fleet-prob-expect"),
       fleetProbBar: d.getElementById("fleet-prob-bar"),
       fleetProbBarHint: d.getElementById("fleet-prob-bar-hint"),
+      fleetProbBarDetail: d.getElementById("fleet-prob-bar-detail"),
       healthTemplate: d.getElementById("health-template"),
       healthRpc: d.getElementById("health-rpc"),
       healthWorkers: d.getElementById("health-workers"),
@@ -4709,16 +4727,33 @@ function renderDashboardHtml() {
         text(refs.expectedBlocksHint, "No accepted share work yet");
       }
 
+      const visibleRows = 5;
       const topShares = sanitizeTopShares(derived && derived.topShares, 20);
-      text(refs.topSharesMeta, "top " + fmtInt(topShares.length) + " / 20");
-      if (!topShares.length) {
-        refs.topSharesList.innerHTML = '<div class="spectrometer-empty">No accepted shares yet</div>';
-        return;
-      }
+      const latestShares = topShares
+        .slice()
+        .sort((a, b) => {
+          if (b.t !== a.t) return b.t - a.t;
+          return b.shareDifficulty - a.shareDifficulty;
+        })
+        .slice(0, visibleRows);
+      text(refs.topSharesMeta, "last " + fmtInt(latestShares.length) + " / " + fmtInt(visibleRows));
 
       let html = "";
-      for (let i = 0; i < topShares.length; i += 1) {
-        const share = topShares[i];
+      for (let i = 0; i < visibleRows; i += 1) {
+        const share = latestShares[i];
+        if (!share) {
+          html += \`
+            <div class="spectrometer-row placeholder">
+              <div class="spectrometer-row-main">
+                <span class="spectrometer-rank">#\${i + 1}</span>
+                <span class="spectrometer-pct">-</span>
+              </div>
+              <div class="spectrometer-row-sub">Waiting for accepted shares</div>
+            </div>
+          \`;
+          continue;
+        }
+
         const pct = share.pctOfBlock > 0
           ? share.pctOfBlock
           : (share.networkDifficulty > 0 ? (share.shareDifficulty / share.networkDifficulty) : 0);
@@ -4922,6 +4957,7 @@ function renderDashboardHtml() {
         text(refs.fleetProbExpect, "Waiting for hashrate and difficulty to estimate expected time-to-block.");
         text(refs.fleetProbBar, "░".repeat(10));
         text(refs.fleetProbBarHint, "0.0% this week");
+        text(refs.fleetProbBarDetail, "Chance of >=1 block in next 7 days");
         return;
       }
 
@@ -4948,6 +4984,7 @@ function renderDashboardHtml() {
 
       text(refs.fleetProbBar, buildProbabilityBar(weekProb, 10));
       text(refs.fleetProbBarHint, fmtPctFromRatioFixed(weekProb, 1) + " this week");
+      text(refs.fleetProbBarDetail, "Chance of >=1 block in next 7 days");
     }
 
     function describeFleetDifficultyCondition(trend, changePct) {
