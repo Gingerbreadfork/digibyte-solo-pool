@@ -982,6 +982,13 @@ function renderDashboardHtml() {
       cursor: default;
     }
 
+    .runtime-note {
+      font-size: 10px;
+      color: var(--ink-2);
+      font-family: var(--mono);
+      white-space: nowrap;
+    }
+
     .copy-btn {
       border: 1px solid var(--line);
       border-radius: 8px;
@@ -2442,9 +2449,9 @@ function renderDashboardHtml() {
         <div id="conn-hint" class="hint">connected / auth / sub</div>
       </article>
       <article class="card stat-card span-3">
-        <div class="label">Uptime</div>
-        <div id="uptime" class="value">-</div>
-        <div id="uptime-hint" class="hint">process runtime</div>
+        <div class="label"><span class="label-icon">🏅</span>Best Share (Session)</div>
+        <div id="best-share-session" class="value">-</div>
+        <div id="best-share-session-hint" class="hint">No shares yet</div>
       </article>
     </section>
 
@@ -2481,11 +2488,6 @@ function renderDashboardHtml() {
           <div id="luck-meta" class="meta">progress to block</div>
         </div>
         <div class="luck-stats">
-          <div class="luck-item">
-            <div class="luck-label">Best Share (Session)</div>
-            <div class="luck-value" id="best-share-session">-</div>
-            <div class="luck-hint" id="best-share-session-hint">No shares yet</div>
-          </div>
           <div class="luck-item">
             <div class="luck-label">Poisson Variance</div>
             <div class="luck-value" id="variance-probability">-</div>
@@ -2656,6 +2658,7 @@ function renderDashboardHtml() {
           <div class="row"><div class="k">Template Source</div><div id="tmpl-source" class="v">-</div></div>
           <div class="row"><div class="k">Network Bits</div><div id="tmpl-bits" class="v">-</div></div>
           <div class="row"><div class="k">Templates Fetched</div><div id="tmpl-fetched" class="v">-</div></div>
+          <div class="row"><div class="k">Uptime</div><div id="uptime" class="v">-</div><div id="uptime-hint" class="runtime-note">pool process</div></div>
           <div class="row"><div class="k">Last Template Age</div><div id="tmpl-age" class="v">-</div></div>
           <div class="row"><div class="k">Last Broadcast Age</div><div id="bcast-age" class="v">-</div></div>
           <div class="row"><div class="k">Last Broadcast Clients</div><div id="bcast-clients" class="v">-</div></div>
