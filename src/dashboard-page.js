@@ -3057,13 +3057,13 @@ function renderDashboardHtml(config) {
           const idx = (y * state.gridW + x) * 3;
           const tx = x / Math.max(1, state.gridW - 1);
           const ty = y / Math.max(1, state.gridH - 1);
-          const sky = Math.pow(1 - ty, 1.2);
+          const sky = Math.pow(1 - ty, 0.8);
           const centerDist = Math.sqrt(Math.pow(tx - 0.5, 2) + Math.pow(ty - 0.5, 2));
-          const vignette = 1 - (centerDist * 0.3);
-          const noise = (Math.sin(tx * 43.7) * Math.cos(ty * 37.3)) * 1.5;
-          state.field[idx] = (6 + (sky * 14) + (Math.sin(tx * Math.PI * 2) * 2) + noise) * vignette;
-          state.field[idx + 1] = (9 + (sky * 17) + (Math.cos((tx * 1.7) + (ty * 2.1)) * 2.6) + noise * 0.8) * vignette;
-          state.field[idx + 2] = (14 + (sky * 21) + (Math.sin((tx * 2.3) - (ty * 1.8)) * 3) + noise * 0.6) * vignette;
+          const vignette = Math.max(0.4, 1 - (centerDist * 0.8));
+          const noise = (Math.sin(tx * 43.7) * Math.cos(ty * 37.3)) * 0.8;
+          state.field[idx] = (2 + (sky * 6) + (Math.sin(tx * Math.PI * 2) * 1) + noise) * vignette;
+          state.field[idx + 1] = (3 + (sky * 7) + (Math.cos((tx * 1.7) + (ty * 2.1)) * 1.2) + noise * 0.6) * vignette;
+          state.field[idx + 2] = (4 + (sky * 8) + (Math.sin((tx * 2.3) - (ty * 1.8)) * 1.4) + noise * 0.5) * vignette;
         }
       }
 
@@ -3095,14 +3095,16 @@ function renderDashboardHtml(config) {
 
     function createEntropyBlobs(gridW, gridH, count) {
       const palette = [
-        [100, 230, 255],
-        [80, 255, 170],
-        [255, 140, 80],
-        [255, 90, 140],
-        [255, 230, 100],
-        [170, 100, 255],
-        [255, 160, 220],
-        [100, 255, 230]
+        [80, 220, 255],
+        [60, 255, 150],
+        [255, 120, 60],
+        [255, 70, 130],
+        [255, 220, 80],
+        [150, 80, 255],
+        [255, 140, 210],
+        [80, 245, 220],
+        [255, 100, 180],
+        [120, 180, 255]
       ];
       const total = Math.max(6, Math.floor(safeNum(count, 12)));
       const blobs = [];
@@ -3306,18 +3308,18 @@ function renderDashboardHtml(config) {
         const x = i % state.gridW;
         const y = (i / state.gridW) | 0;
         const contourWave = Math.sin((lum * 0.085) + (x * 0.032) + (sigAUnit * Math.PI * 2));
-        const contour = Math.pow(Math.max(0, contourWave), 7) * (28 + drive * 22);
-        const tone = lum + (chroma * (0.12 + drive * 0.10)) + contour;
+        const contour = Math.pow(Math.max(0, contourWave), 7) * (8 + drive * 6);
+        const tone = lum * 0.4 + (chroma * (0.08 + drive * 0.06)) + contour;
 
-        const satBoost = 1.25 + (drive * 0.35);
+        const satBoost = 1.8 + (drive * 0.5);
         const lumTarget = Math.max(r, g, b);
         const rSat = r + ((r - lum) * satBoost);
         const gSat = g + ((g - lum) * satBoost);
         const bSat = b + ((b - lum) * satBoost);
 
-        pixels[dst] = clamp255((rSat * 0.85) + (tone * (0.12 + sigAUnit * 0.10)));
-        pixels[dst + 1] = clamp255((gSat * 0.88) + (tone * (0.10 + sigBUnit * 0.09)));
-        pixels[dst + 2] = clamp255((bSat * 0.82) + (tone * (0.09 + ((sigAUnit + sigBUnit) * 0.07))));
+        pixels[dst] = clamp255((rSat * 0.92) + (tone * (0.05 + sigAUnit * 0.03)));
+        pixels[dst + 1] = clamp255((gSat * 0.94) + (tone * (0.04 + sigBUnit * 0.02)));
+        pixels[dst + 2] = clamp255((bSat * 0.90) + (tone * (0.03 + ((sigAUnit + sigBUnit) * 0.02))));
         pixels[dst + 3] = 255;
       }
       offCtx.putImageData(imageData, 0, 0);
@@ -3334,10 +3336,10 @@ function renderDashboardHtml(config) {
         const y = (blob.y / state.gridH) * canvas.height;
         const radius = (blob.radius / state.gridW) * canvas.width * 2.4;
         const grad = ctx.createRadialGradient(x, y, 0, x, y, radius);
-        const glowAlpha = 0.05 + (drive * 0.11);
+        const glowAlpha = 0.08 + (drive * 0.15);
         grad.addColorStop(0, "rgba(" + Math.round(blob.colorR) + "," + Math.round(blob.colorG) + "," + Math.round(blob.colorB) + "," + glowAlpha.toFixed(3) + ")");
-        grad.addColorStop(0.5, "rgba(" + Math.round(blob.colorR) + "," + Math.round(blob.colorG) + "," + Math.round(blob.colorB) + "," + (glowAlpha * 0.45).toFixed(3) + ")");
-        grad.addColorStop(0.8, "rgba(" + Math.round(blob.colorR) + "," + Math.round(blob.colorG) + "," + Math.round(blob.colorB) + "," + (glowAlpha * 0.15).toFixed(3) + ")");
+        grad.addColorStop(0.5, "rgba(" + Math.round(blob.colorR) + "," + Math.round(blob.colorG) + "," + Math.round(blob.colorB) + "," + (glowAlpha * 0.5).toFixed(3) + ")");
+        grad.addColorStop(0.8, "rgba(" + Math.round(blob.colorR) + "," + Math.round(blob.colorG) + "," + Math.round(blob.colorB) + "," + (glowAlpha * 0.2).toFixed(3) + ")");
         grad.addColorStop(1, "rgba(" + Math.round(blob.colorR) + "," + Math.round(blob.colorG) + "," + Math.round(blob.colorB) + ",0)");
         ctx.fillStyle = grad;
         ctx.fillRect(x - radius, y - radius, radius * 2, radius * 2);
@@ -3351,30 +3353,30 @@ function renderDashboardHtml(config) {
         const x = (blob.x / state.gridW) * canvas.width;
         const y = (blob.y / state.gridH) * canvas.height;
         const radius = (blob.radius / state.gridW) * canvas.width * 0.9;
-        const highlightX = x - (radius * 0.25);
-        const highlightY = y - (radius * 0.25);
-        const highlight = ctx.createRadialGradient(highlightX, highlightY, 0, highlightX, highlightY, radius * 1.2);
-        const highlightAlpha = 0.08 + (drive * 0.15);
+        const highlightX = x - (radius * 0.3);
+        const highlightY = y - (radius * 0.3);
+        const highlight = ctx.createRadialGradient(highlightX, highlightY, 0, highlightX, highlightY, radius * 0.9);
+        const highlightAlpha = 0.03 + (drive * 0.06);
         highlight.addColorStop(0, "rgba(255,255,255," + highlightAlpha.toFixed(3) + ")");
-        highlight.addColorStop(0.3, "rgba(255,255,255," + (highlightAlpha * 0.4).toFixed(3) + ")");
+        highlight.addColorStop(0.4, "rgba(255,255,255," + (highlightAlpha * 0.3).toFixed(3) + ")");
         highlight.addColorStop(1, "rgba(255,255,255,0)");
         ctx.fillStyle = highlight;
-        ctx.fillRect(highlightX - radius * 1.2, highlightY - radius * 1.2, radius * 2.4, radius * 2.4);
+        ctx.fillRect(highlightX - radius * 0.9, highlightY - radius * 0.9, radius * 1.8, radius * 1.8);
       }
       ctx.restore();
 
       ctx.save();
       ctx.globalCompositeOperation = "screen";
-      ctx.filter = "blur(20px)";
+      ctx.filter = "blur(24px)";
       for (let i = 0; i < state.blobs.length; i += 1) {
         const blob = state.blobs[i];
         const x = (blob.x / state.gridW) * canvas.width;
         const y = (blob.y / state.gridH) * canvas.height;
         const radius = (blob.radius / state.gridW) * canvas.width * 3.5;
         const bloom = ctx.createRadialGradient(x, y, 0, x, y, radius);
-        const bloomAlpha = 0.04 + (drive * 0.08);
+        const bloomAlpha = 0.06 + (drive * 0.11);
         bloom.addColorStop(0, "rgba(" + Math.round(blob.colorR) + "," + Math.round(blob.colorG) + "," + Math.round(blob.colorB) + "," + bloomAlpha.toFixed(3) + ")");
-        bloom.addColorStop(0.7, "rgba(" + Math.round(blob.colorR) + "," + Math.round(blob.colorG) + "," + Math.round(blob.colorB) + "," + (bloomAlpha * 0.2).toFixed(3) + ")");
+        bloom.addColorStop(0.6, "rgba(" + Math.round(blob.colorR) + "," + Math.round(blob.colorG) + "," + Math.round(blob.colorB) + "," + (bloomAlpha * 0.3).toFixed(3) + ")");
         bloom.addColorStop(1, "rgba(" + Math.round(blob.colorR) + "," + Math.round(blob.colorG) + "," + Math.round(blob.colorB) + ",0)");
         ctx.fillStyle = bloom;
         ctx.fillRect(x - radius, y - radius, radius * 2, radius * 2);
@@ -3383,24 +3385,17 @@ function renderDashboardHtml(config) {
       ctx.restore();
 
       ctx.save();
-      const topGlow = ctx.createLinearGradient(0, 0, 0, canvas.height);
-      topGlow.addColorStop(0, "rgba(146, 232, 255, 0.04)");
-      topGlow.addColorStop(0.45, "rgba(18, 24, 34, 0.01)");
-      topGlow.addColorStop(1, "rgba(2, 4, 8, 0.16)");
-      ctx.fillStyle = topGlow;
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-
       const vignette = ctx.createRadialGradient(
         canvas.width * 0.5,
         canvas.height * 0.42,
-        canvas.height * 0.1,
+        canvas.height * 0.05,
         canvas.width * 0.5,
         canvas.height * 0.5,
-        canvas.width * 0.72
+        canvas.width * 0.75
       );
       vignette.addColorStop(0, "rgba(0,0,0,0)");
-      vignette.addColorStop(0.72, "rgba(0,0,0,0.12)");
-      vignette.addColorStop(1, "rgba(0,0,0,0.24)");
+      vignette.addColorStop(0.65, "rgba(0,0,0,0.25)");
+      vignette.addColorStop(1, "rgba(0,0,0,0.55)");
       ctx.fillStyle = vignette;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.restore();
