@@ -130,7 +130,7 @@ function renderDashboardHtml() {
     }
 
     .wrap {
-      --page-pad: clamp(14px, 1.8vw, 30px);
+      --page-pad: clamp(12px, 1.4vw, 22px);
       position: relative;
       z-index: 1;
       width: min(1680px, 100%);
@@ -141,21 +141,21 @@ function renderDashboardHtml() {
       padding-bottom: max(var(--page-pad), env(safe-area-inset-bottom));
       padding-left: max(var(--page-pad), env(safe-area-inset-left));
       display: grid;
-      gap: clamp(14px, 1.4vw, 22px);
+      gap: clamp(10px, 1.05vw, 16px);
     }
 
     .hero {
       position: relative;
       border: 1px solid var(--line);
-      border-radius: clamp(18px, 2.4vw, 30px);
-      padding: clamp(18px, 2.4vw, 36px);
+      border-radius: clamp(16px, 2vw, 24px);
+      padding: clamp(12px, 1.4vw, 18px);
       background:
         linear-gradient(140deg, rgba(16, 16, 16, 0.9), rgba(8, 8, 8, 0.96)),
         var(--surface-strong);
       backdrop-filter: blur(18px);
       box-shadow: var(--shadow-lg);
       display: grid;
-      gap: clamp(16px, 2vw, 30px);
+      gap: clamp(10px, 1.2vw, 16px);
       grid-template-columns: 1fr;
       overflow: hidden;
       isolation: isolate;
@@ -200,7 +200,7 @@ function renderDashboardHtml() {
 
     .headline {
       display: grid;
-      gap: 14px;
+      gap: 9px;
       min-width: 0;
       align-content: start;
     }
@@ -208,12 +208,12 @@ function renderDashboardHtml() {
     .title-row {
       display: flex;
       flex-wrap: wrap;
-      gap: 12px;
+      gap: 9px;
       align-items: center;
     }
 
     h1 {
-      font-size: clamp(1.35rem, 2.8vw, 2.8rem);
+      font-size: clamp(1.25rem, 2.45vw, 2.35rem);
       line-height: 1.18;
       font-weight: 800;
       letter-spacing: -0.01em;
@@ -254,15 +254,15 @@ function renderDashboardHtml() {
     .hero-meta-strip {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-      gap: 10px;
-      margin-top: 2px;
+      gap: 8px;
+      margin-top: 0;
       min-width: 0;
     }
 
     .hero-signal {
-      padding: clamp(12px, 1.3vw, 16px);
+      padding: clamp(10px, 1vw, 12px);
       display: grid;
-      gap: 10px;
+      gap: 8px;
       align-content: start;
       min-height: 0;
       min-width: 0;
@@ -281,9 +281,9 @@ function renderDashboardHtml() {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 10px;
+      gap: 8px;
       border-bottom: 1px solid var(--line-soft);
-      padding-bottom: 10px;
+      padding-bottom: 8px;
       min-width: 0;
       flex-wrap: wrap;
     }
@@ -314,7 +314,7 @@ function renderDashboardHtml() {
 
     .hero-signal-grid {
       display: grid;
-      gap: 10px;
+      gap: 8px;
       min-width: 0;
     }
 
@@ -322,9 +322,9 @@ function renderDashboardHtml() {
       position: relative;
       border: 1px solid var(--line-soft);
       border-radius: 12px;
-      padding: 8px;
+      padding: 6px;
       height: auto;
-      min-height: 260px;
+      min-height: 214px;
       background:
         linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px) 0 0 / 100% 25%,
         linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px) 0 0 / 12.5% 100%,
@@ -334,8 +334,8 @@ function renderDashboardHtml() {
     }
 
     .hero-diff-wrap > #hero-diff-chart {
-      height: 244px;
-      min-height: 244px;
+      height: 200px;
+      min-height: 200px;
       display: block;
     }
 
@@ -382,10 +382,10 @@ function renderDashboardHtml() {
       display: flex;
       flex-wrap: wrap;
       align-items: center;
-      gap: 8px;
+      gap: 6px;
       color: var(--ink-2);
       font-family: var(--mono);
-      font-size: 11px;
+      font-size: 10px;
     }
 
     .legend-item {
@@ -415,7 +415,7 @@ function renderDashboardHtml() {
       margin-left: auto;
       border: 1px solid var(--line-soft);
       border-radius: 999px;
-      padding: 4px 8px;
+      padding: 3px 7px;
       background: rgba(255, 255, 255, 0.03);
       color: var(--ink-1);
       white-space: nowrap;
@@ -430,7 +430,7 @@ function renderDashboardHtml() {
       border-radius: 999px;
       border: 1px solid var(--line-soft);
       background: rgba(255, 255, 255, 0.03);
-      padding: 9px 14px;
+      padding: 7px 12px;
       font-size: 11px;
       letter-spacing: 0.1em;
       text-transform: uppercase;
@@ -440,7 +440,7 @@ function renderDashboardHtml() {
       justify-content: center;
       flex-wrap: wrap;
       gap: 8px;
-      min-height: 40px;
+      min-height: 34px;
       text-align: center;
       min-width: 0;
       width: 100%;
@@ -466,11 +466,11 @@ function renderDashboardHtml() {
       border: 1px solid var(--line-soft);
       background: rgba(255, 255, 255, 0.03);
       color: var(--ink-0);
-      min-height: 40px;
-      padding: 8px 14px;
+      min-height: 34px;
+      padding: 7px 12px;
       display: inline-flex;
       align-items: center;
-      gap: 9px;
+      gap: 8px;
       font-size: 12px;
       font-weight: 700;
       letter-spacing: 0.08em;
@@ -525,21 +525,21 @@ function renderDashboardHtml() {
       display: inline-flex;
       align-items: center;
       flex-wrap: wrap;
-      gap: 8px;
+      gap: 6px;
     }
 
     .icon-btn {
       appearance: none;
       border: 1px solid var(--line-soft);
-      width: 40px;
-      height: 40px;
-      border-radius: 12px;
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
       background: rgba(255, 255, 255, 0.02);
       color: var(--ink-1);
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      font-size: 17px;
+      font-size: 15px;
       cursor: pointer;
       transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, color 0.2s ease, background 0.2s ease;
       box-shadow: var(--shadow-xs);
@@ -671,6 +671,40 @@ function renderDashboardHtml() {
       color: var(--ink-2);
       line-height: 1.45;
       min-height: 1.2em;
+    }
+
+    .kpi-grid .stat-card {
+      gap: 5px;
+      padding: clamp(10px, 1vw, 13px);
+      min-height: 90px;
+      border-radius: 14px;
+    }
+
+    .kpi-grid .label {
+      font-size: 9px;
+      letter-spacing: 0.14em;
+      gap: 6px;
+      line-height: 1.2;
+    }
+
+    .kpi-grid .label-icon {
+      font-size: 13px;
+    }
+
+    .kpi-grid .value {
+      font-size: clamp(1rem, 1.38vw, 1.42rem);
+      letter-spacing: -0.01em;
+      line-height: 1.08;
+    }
+
+    .kpi-grid .hint {
+      font-size: 11px;
+      line-height: 1.3;
+      min-height: 0;
+      opacity: 0.92;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
     .grid {
@@ -1773,6 +1807,45 @@ function renderDashboardHtml() {
       gap: 10px;
     }
 
+    .health-matrix-card {
+      padding: clamp(10px, 1vw, 13px);
+      gap: 8px;
+    }
+
+    .health-matrix-card .chart-head {
+      padding-bottom: 6px;
+      gap: 6px;
+    }
+
+    .health-matrix-card .chart-head .title {
+      font-size: 11px;
+      letter-spacing: 0.12em;
+    }
+
+    .health-matrix-card .chart-head .meta {
+      font-size: 10px;
+      padding: 3px 8px;
+    }
+
+    .health-matrix-card .health-grid {
+      gap: 8px;
+    }
+
+    .health-matrix-card .health-item {
+      padding: 9px 8px;
+      border-radius: 11px;
+      gap: 4px;
+    }
+
+    .health-matrix-card .health-label {
+      font-size: 9px;
+      letter-spacing: 0.1em;
+    }
+
+    .health-matrix-card .health-value {
+      font-size: clamp(13px, 1.35vw, 17px);
+    }
+
     .health-item {
       border-radius: 14px;
       border: 1px solid var(--line-soft);
@@ -2307,6 +2380,29 @@ function renderDashboardHtml() {
     </section>
 
     <section class="grid reveal">
+      <article class="card chart-card health-matrix-card span-12">
+        <div class="chart-head">
+          <div class="title">System Health Matrix</div>
+          <div class="meta">live watchdog</div>
+        </div>
+        <div class="health-grid">
+          <div class="health-item" id="health-template">
+            <div class="health-label">Template Freshness</div>
+            <div class="health-value">-</div>
+          </div>
+          <div class="health-item" id="health-rpc">
+            <div class="health-label">RPC Latency</div>
+            <div class="health-value">-</div>
+          </div>
+          <div class="health-item" id="health-workers">
+            <div class="health-label">Worker Presence</div>
+            <div class="health-value">-</div>
+          </div>
+        </div>
+      </article>
+    </section>
+
+    <section class="grid reveal kpi-grid">
       <article class="card stat-card span-3">
         <div class="label"><span class="label-icon">⚡</span>Pool Hashrate</div>
         <div id="pool-hashrate" class="value">-</div>
@@ -2329,7 +2425,7 @@ function renderDashboardHtml() {
       </article>
     </section>
 
-    <section class="grid reveal">
+    <section class="grid reveal kpi-grid">
       <article class="card stat-card span-3">
         <div class="label">Current Height</div>
         <div id="height" class="value">-</div>
@@ -2352,26 +2448,29 @@ function renderDashboardHtml() {
       </article>
     </section>
 
-    <section class="grid reveal">
-      <article class="card chart-card span-12">
-        <div class="chart-head">
-          <div class="title">System Health Matrix</div>
-          <div class="meta">live watchdog</div>
+    <section class="grid reveal kpi-grid">
+      <article class="card stat-card span-3">
+        <div class="label"><span class="label-icon">★</span>Best Share (All Time)</div>
+        <div id="best-share-alltime" class="value">-</div>
+        <div id="best-share-alltime-hint" class="hint">No shares yet</div>
+      </article>
+      <article class="card stat-card span-3">
+        <div class="label"><span class="label-icon">⏱</span>Time To Block (Est)</div>
+        <div id="ttb-estimate" class="value">-</div>
+        <div id="ttb-hint" class="hint">Based on current hashrate</div>
+      </article>
+      <article class="card stat-card span-3">
+        <div class="label"><span class="label-icon">Σ</span>Expected Blocks (EB)</div>
+        <div id="expected-blocks" class="value highlight">-</div>
+        <div id="expected-blocks-hint" class="hint">No accepted share work yet</div>
+        <div class="spectrometer-progress">
+          <div class="spectrometer-progress-bar" id="expected-blocks-bar"></div>
         </div>
-        <div class="health-grid">
-          <div class="health-item" id="health-template">
-            <div class="health-label">Template Freshness</div>
-            <div class="health-value">-</div>
-          </div>
-          <div class="health-item" id="health-rpc">
-            <div class="health-label">RPC Latency</div>
-            <div class="health-value">-</div>
-          </div>
-          <div class="health-item" id="health-workers">
-            <div class="health-label">Worker Presence</div>
-            <div class="health-value">-</div>
-          </div>
-        </div>
+      </article>
+      <article class="card stat-card span-3">
+        <div class="label"><span class="label-icon">⛓</span>SHA256d Difficulty</div>
+        <div id="network-difficulty" class="value">-</div>
+        <div id="network-difficulty-hint" class="hint">Waiting for templates</div>
       </article>
     </section>
 
@@ -2388,32 +2487,9 @@ function renderDashboardHtml() {
             <div class="luck-hint" id="best-share-session-hint">No shares yet</div>
           </div>
           <div class="luck-item">
-            <div class="luck-label">Best Share (All Time)</div>
-            <div class="luck-value" id="best-share-alltime">-</div>
-            <div class="luck-hint" id="best-share-alltime-hint">No shares yet</div>
-          </div>
-          <div class="luck-item">
-            <div class="luck-label">Time to Block (Estimate)</div>
-            <div class="luck-value" id="ttb-estimate">-</div>
-            <div class="luck-hint" id="ttb-hint">Based on current hashrate</div>
-          </div>
-          <div class="luck-item">
-            <div class="luck-label">Expected Blocks (EB)</div>
-            <div class="luck-value" id="expected-blocks">-</div>
-            <div class="luck-hint" id="expected-blocks-hint">No accepted share work yet</div>
-            <div class="spectrometer-progress">
-              <div class="spectrometer-progress-bar" id="expected-blocks-bar"></div>
-            </div>
-          </div>
-          <div class="luck-item">
             <div class="luck-label">Poisson Variance</div>
             <div class="luck-value" id="variance-probability">-</div>
             <div class="luck-hint" id="variance-hint">Waiting for expected blocks</div>
-          </div>
-          <div class="luck-item">
-            <div class="luck-label">SHA256d Difficulty</div>
-            <div class="luck-value" id="network-difficulty">-</div>
-            <div class="luck-hint" id="network-difficulty-hint">Waiting for templates</div>
           </div>
         </div>
         <div class="spectrometer-list">
