@@ -1178,6 +1178,100 @@ function renderDashboardHtml() {
       font-family: var(--mono);
     }
 
+    .fleet-prob-wrap {
+      display: grid;
+      gap: 10px;
+      align-content: start;
+    }
+
+    .fleet-prob-top {
+      display: grid;
+      gap: 6px;
+    }
+
+    .fleet-prob-title {
+      font-family: var(--mono);
+      font-size: 13px;
+      color: var(--ink-0);
+    }
+
+    .fleet-prob-title strong {
+      color: var(--cyan);
+      font-weight: 700;
+    }
+
+    .fleet-prob-cond {
+      font-size: 12px;
+      color: var(--ink-2);
+      line-height: 1.4;
+    }
+
+    .fleet-prob-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .fleet-prob-cell {
+      border: 1px solid var(--line-soft);
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.02);
+      padding: 9px 10px;
+      display: grid;
+      gap: 4px;
+      min-width: 0;
+    }
+
+    [data-theme="light"] .fleet-prob-cell {
+      background: rgba(255, 255, 255, 0.82);
+      border-color: rgba(42, 60, 85, 0.11);
+    }
+
+    .fleet-prob-label {
+      font-size: 10px;
+      letter-spacing: 0.11em;
+      text-transform: uppercase;
+      color: var(--ink-2);
+      font-weight: 700;
+    }
+
+    .fleet-prob-value {
+      font-family: var(--mono);
+      color: var(--teal);
+      font-size: 18px;
+      font-weight: 700;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .fleet-prob-expect {
+      border: 1px solid rgba(166, 255, 111, 0.35);
+      border-radius: 12px;
+      background: linear-gradient(180deg, rgba(166, 255, 111, 0.12), rgba(166, 255, 111, 0.03));
+      color: #dfffc6;
+      font-size: 12px;
+      line-height: 1.45;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+      padding: 10px 12px;
+    }
+
+    .fleet-prob-bar {
+      font-family: var(--mono);
+      font-size: clamp(13px, 1.6vw, 17px);
+      color: var(--cyan);
+      letter-spacing: 0.02em;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .fleet-prob-bar-hint {
+      font-size: 12px;
+      color: var(--ink-2);
+    }
+
     .luck-stats {
       display: grid;
       gap: 8px;
@@ -1867,6 +1961,10 @@ function renderDashboardHtml() {
       .rows {
         grid-template-columns: 1fr;
       }
+
+      .fleet-prob-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
     }
 
     @media (max-width: 920px) {
@@ -1919,6 +2017,10 @@ function renderDashboardHtml() {
 
       .worker-stats {
         grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .fleet-prob-grid {
+        grid-template-columns: 1fr;
       }
 
       .health-grid {
@@ -2269,6 +2371,42 @@ function renderDashboardHtml() {
     </section>
 
     <section class="grid reveal">
+      <article class="card chart-card span-12">
+        <div class="chart-head">
+          <div class="title">Fleet Block Probability (All Connected Miners)</div>
+          <div id="fleet-prob-meta" class="meta">live estimate</div>
+        </div>
+        <div class="fleet-prob-wrap">
+          <div class="fleet-prob-top">
+            <div class="fleet-prob-title">Fleet hashrate: <strong id="fleet-hashrate">-</strong> (<span id="fleet-miners">0 miners</span>)</div>
+            <div class="fleet-prob-cond">Current difficulty: <span id="fleet-difficulty">-</span> (<span id="fleet-difficulty-cond">waiting</span>)</div>
+          </div>
+          <div class="fleet-prob-grid">
+            <div class="fleet-prob-cell">
+              <div class="fleet-prob-label">Per Hour</div>
+              <div class="fleet-prob-value" id="fleet-prob-hour">-</div>
+            </div>
+            <div class="fleet-prob-cell">
+              <div class="fleet-prob-label">Per Day</div>
+              <div class="fleet-prob-value" id="fleet-prob-day">-</div>
+            </div>
+            <div class="fleet-prob-cell">
+              <div class="fleet-prob-label">Per Week</div>
+              <div class="fleet-prob-value" id="fleet-prob-week">-</div>
+            </div>
+            <div class="fleet-prob-cell">
+              <div class="fleet-prob-label">Per Month</div>
+              <div class="fleet-prob-value" id="fleet-prob-month">-</div>
+            </div>
+          </div>
+          <div class="fleet-prob-expect" id="fleet-prob-expect">Waiting for hashrate and difficulty to estimate expected time-to-block.</div>
+          <div class="fleet-prob-bar" id="fleet-prob-bar">░░░░░░░░░░░░░░░░░░░░░░░░░░░░</div>
+          <div class="fleet-prob-bar-hint" id="fleet-prob-bar-hint">0.0% this week</div>
+        </div>
+      </article>
+    </section>
+
+    <section class="grid reveal">
       <article class="card chart-card span-8">
         <div class="chart-head">
           <div class="title">Shares Per Tick</div>
@@ -2495,6 +2633,18 @@ function renderDashboardHtml() {
       battlefieldMeta: d.getElementById("battlefield-meta"),
       battlefieldList: d.getElementById("battlefield-list"),
       battlefieldHourly: d.getElementById("battlefield-hourly"),
+      fleetProbMeta: d.getElementById("fleet-prob-meta"),
+      fleetHashrate: d.getElementById("fleet-hashrate"),
+      fleetMiners: d.getElementById("fleet-miners"),
+      fleetDifficulty: d.getElementById("fleet-difficulty"),
+      fleetDifficultyCond: d.getElementById("fleet-difficulty-cond"),
+      fleetProbHour: d.getElementById("fleet-prob-hour"),
+      fleetProbDay: d.getElementById("fleet-prob-day"),
+      fleetProbWeek: d.getElementById("fleet-prob-week"),
+      fleetProbMonth: d.getElementById("fleet-prob-month"),
+      fleetProbExpect: d.getElementById("fleet-prob-expect"),
+      fleetProbBar: d.getElementById("fleet-prob-bar"),
+      fleetProbBarHint: d.getElementById("fleet-prob-bar-hint"),
       luckMeta: d.getElementById("luck-meta"),
       healthTemplate: d.getElementById("health-template"),
       healthRpc: d.getElementById("health-rpc"),
@@ -3980,6 +4130,7 @@ function renderDashboardHtml() {
       renderShareSpectrometer(d0, diff);
       renderBlocksList();
       renderBattlefield(d0.networkBattlefield);
+      renderFleetBlockProbability(d0, diff, workers);
       renderHealthIndicators(s, now, workers.length);
     }
 
@@ -4686,6 +4837,98 @@ function renderDashboardHtml() {
         \`;
       }
       refs.battlefieldHourly.innerHTML = hourlyHtml;
+    }
+
+    function renderFleetBlockProbability(derived, diff, workers) {
+      const fleetHashrate = Math.max(0, safeNum(derived && derived.poolHashrate, 0));
+      const networkDifficulty = Math.max(0, safeNum(diff && diff.current, 0));
+      const trend = normalizeDifficultyTrend(diff && diff.trend);
+      const changePct = safeNum(diff && diff.changePct, 0);
+      const minerCount = Array.isArray(workers) ? workers.length : 0;
+
+      text(refs.fleetHashrate, fleetHashrate > 0 ? fmtHashrate(fleetHashrate) : "-");
+      text(refs.fleetMiners, fmtInt(minerCount) + " miners connected");
+      text(refs.fleetDifficulty, networkDifficulty > 0 ? fmtDifficulty(networkDifficulty) : "-");
+      text(refs.fleetDifficultyCond, describeFleetDifficultyCondition(trend, changePct));
+      text(refs.fleetProbMeta, "all connected miners");
+
+      if (!(fleetHashrate > 0) || !(networkDifficulty > 0)) {
+        text(refs.fleetProbHour, "-");
+        text(refs.fleetProbDay, "-");
+        text(refs.fleetProbWeek, "-");
+        text(refs.fleetProbMonth, "-");
+        text(refs.fleetProbExpect, "Waiting for hashrate and difficulty to estimate expected time-to-block.");
+        text(refs.fleetProbBar, "░".repeat(30));
+        text(refs.fleetProbBarHint, "0.0% this week");
+        return;
+      }
+
+      const hourProb = probabilityForDuration(fleetHashrate, networkDifficulty, 3600);
+      const dayProb = probabilityForDuration(fleetHashrate, networkDifficulty, 86400);
+      const weekProb = probabilityForDuration(fleetHashrate, networkDifficulty, 7 * 86400);
+      const monthProb = probabilityForDuration(fleetHashrate, networkDifficulty, 30 * 86400);
+      const expectedSec = expectedSecondsPerBlock(fleetHashrate, networkDifficulty);
+      const expectedDays = expectedSec > 0 ? (expectedSec / 86400) : 0;
+
+      text(refs.fleetProbHour, fmtPctFromRatioFixed(hourProb, 2));
+      text(refs.fleetProbDay, fmtPctFromRatioFixed(dayProb, 1));
+      text(refs.fleetProbWeek, fmtPctFromRatioFixed(weekProb, 1));
+      text(refs.fleetProbMonth, fmtPctFromRatioFixed(monthProb, 1));
+
+      if (expectedDays > 0) {
+        text(
+          refs.fleetProbExpect,
+          "At current conditions, this fleet is statistically expected to find a block within " + expectedDays.toFixed(1) + " days."
+        );
+      } else {
+        text(refs.fleetProbExpect, "Expected time-to-block unavailable.");
+      }
+
+      text(refs.fleetProbBar, buildProbabilityBar(weekProb, 30));
+      text(refs.fleetProbBarHint, fmtPctFromRatioFixed(weekProb, 1) + " this week");
+    }
+
+    function describeFleetDifficultyCondition(trend, changePct) {
+      if (trend === "falling") {
+        if (changePct <= -4) return "falling - trough in progress";
+        return "falling";
+      }
+      if (trend === "rising") {
+        if (changePct >= 4) return "rising - headwind";
+        return "rising";
+      }
+      return "flat";
+    }
+
+    function probabilityForDuration(hashrateHps, difficulty, seconds) {
+      const h = Math.max(0, safeNum(hashrateHps, 0));
+      const d = Math.max(0, safeNum(difficulty, 0));
+      const s = Math.max(0, safeNum(seconds, 0));
+      if (!(h > 0) || !(d > 0) || !(s > 0)) return 0;
+      const lambda = (h * s) / (d * Math.pow(2, 32));
+      if (lambda <= 0) return 0;
+      if (lambda > 50) return 1;
+      return Math.max(0, Math.min(1, 1 - Math.exp(-lambda)));
+    }
+
+    function expectedSecondsPerBlock(hashrateHps, difficulty) {
+      const h = Math.max(0, safeNum(hashrateHps, 0));
+      const d = Math.max(0, safeNum(difficulty, 0));
+      if (!(h > 0) || !(d > 0)) return 0;
+      return (d * Math.pow(2, 32)) / h;
+    }
+
+    function fmtPctFromRatioFixed(ratio, decimals) {
+      const n = Math.max(0, Math.min(1, safeNum(ratio, 0)));
+      const d = Math.max(0, Math.min(4, Math.floor(safeNum(decimals, 1))));
+      return (n * 100).toFixed(d) + "%";
+    }
+
+    function buildProbabilityBar(ratio, width) {
+      const n = Math.max(0, Math.min(1, safeNum(ratio, 0)));
+      const w = Math.max(5, Math.floor(safeNum(width, 30)));
+      const filled = Math.max(0, Math.min(w, Math.round(n * w)));
+      return "█".repeat(filled) + "░".repeat(w - filled);
     }
 
     function formatBattlefieldTag(tagRaw) {
