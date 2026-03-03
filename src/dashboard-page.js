@@ -884,7 +884,7 @@ function renderDashboardHtml() {
     }
 
     .runtime-rows {
-      grid-template-columns: 1fr;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
     }
 
     .row {
@@ -938,14 +938,17 @@ function renderDashboardHtml() {
 
     .runtime-rows .row {
       display: grid;
-      grid-template-columns: minmax(126px, 190px) minmax(0, 1fr) auto;
-      align-items: center;
+      grid-template-columns: 1fr;
+      align-items: start;
       justify-content: start;
-      gap: 10px;
+      gap: 4px;
+      padding: 8px 10px;
     }
 
     .runtime-rows .row .k {
       white-space: normal;
+      font-size: 10px;
+      letter-spacing: 0.08em;
     }
 
     .runtime-rows .row .v {
@@ -955,6 +958,42 @@ function renderDashboardHtml() {
       text-overflow: clip;
       overflow-wrap: anywhere;
       word-break: break-word;
+    }
+
+    .runtime-rows .runtime-note {
+      margin-top: 1px;
+    }
+
+    .runtime-note-inline {
+      display: inline;
+      margin-left: 4px;
+    }
+
+    .runtime-rows .runtime-action-btn {
+      justify-self: start;
+      margin-top: 3px;
+    }
+
+    @media (min-width: 1181px) {
+      .runtime-rows .row.payout-row {
+        grid-template-columns: minmax(120px, 170px) minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .runtime-rows .row.payout-row .k {
+        white-space: nowrap;
+      }
+
+      .runtime-rows .row.payout-row .v {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .runtime-rows .row.payout-row .runtime-action-btn {
+        margin-top: 0;
+      }
     }
 
     .runtime-action-btn {
@@ -1761,6 +1800,11 @@ function renderDashboardHtml() {
       box-shadow: inset 0 1px 8px rgba(255, 255, 255, 0.03), inset 0 -10px 24px rgba(0, 0, 0, 0.32);
     }
 
+    .timeline.compact {
+      min-height: 84px;
+      height: 84px;
+    }
+
     [data-theme="light"] .timeline {
       background:
         linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(245, 236, 223, 0.76)),
@@ -2112,6 +2156,10 @@ function renderDashboardHtml() {
         grid-template-columns: 1fr;
       }
 
+      .runtime-rows {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
       .fleet-prob-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
       }
@@ -2218,6 +2266,10 @@ function renderDashboardHtml() {
         gap: 4px;
       }
 
+      .runtime-rows {
+        grid-template-columns: 1fr;
+      }
+
       .runtime-action-btn {
         justify-self: start;
         margin-top: 2px;
@@ -2253,6 +2305,11 @@ function renderDashboardHtml() {
 
       .timeline {
         min-height: 58px;
+      }
+
+      .timeline.compact {
+        min-height: 72px;
+        height: 72px;
       }
 
       .worker-stats {
@@ -2594,13 +2651,17 @@ function renderDashboardHtml() {
     </section>
 
     <section class="grid reveal">
-      <article class="card chart-card span-6">
+      <article class="card chart-card span-12">
         <div class="chart-head">
           <div class="title">Recent Share Activity</div>
           <div id="timeline-meta" class="meta">last 60 shares</div>
         </div>
-        <div class="timeline" id="share-timeline"></div>
+        <div class="timeline compact" id="share-timeline"></div>
       </article>
+
+    </section>
+
+    <section class="grid reveal">
       <article class="card chart-card span-6">
         <div class="chart-head">
           <div class="title">SHA256d Difficulty Observatory</div>
@@ -2620,9 +2681,7 @@ function renderDashboardHtml() {
           </div>
         </div>
       </article>
-    </section>
 
-    <section class="grid reveal">
       <article class="card table-card span-6">
         <div class="chart-head">
           <div class="title">Active Workers</div>
@@ -2632,8 +2691,10 @@ function renderDashboardHtml() {
           <div class="empty-state">No active workers</div>
         </div>
       </article>
+    </section>
 
-      <article class="card table-card span-6">
+    <section class="grid reveal">
+      <article class="card table-card span-12">
         <div class="chart-head">
           <div class="title">Runtime Detail</div>
           <div id="runtime-detail-meta" class="meta">/stats snapshot</div>
@@ -2642,11 +2703,14 @@ function renderDashboardHtml() {
           <div class="row"><div class="k">Template Source</div><div id="tmpl-source" class="v">-</div></div>
           <div class="row"><div class="k">Network Bits</div><div id="tmpl-bits" class="v">-</div></div>
           <div class="row"><div class="k">Templates Fetched</div><div id="tmpl-fetched" class="v">-</div></div>
-          <div class="row"><div class="k">Uptime</div><div id="uptime" class="v">-</div><div id="uptime-hint" class="runtime-note">pool process</div></div>
+          <div class="row">
+            <div class="k">Uptime</div>
+            <div class="v"><span id="uptime">-</span><span id="uptime-hint" class="runtime-note runtime-note-inline">(pool process)</span></div>
+          </div>
           <div class="row"><div class="k">Last Template Age</div><div id="tmpl-age" class="v">-</div></div>
           <div class="row"><div class="k">Last Broadcast Age</div><div id="bcast-age" class="v">-</div></div>
           <div class="row"><div class="k">Last Broadcast Clients</div><div id="bcast-clients" class="v">-</div></div>
-          <div class="row">
+          <div class="row payout-row">
             <div class="k">Payout Address</div>
             <div id="payout-address" class="v">-</div>
             <a id="payout-explorer-btn" class="runtime-action-btn disabled" href="#" target="_blank" rel="noopener noreferrer" aria-disabled="true" tabindex="-1">Explorer</a>
@@ -4255,7 +4319,7 @@ function renderDashboardHtml() {
       text(refs.conn, [safeNum(c.connected,0), safeNum(c.authorized,0), safeNum(c.subscribed,0)].map(fmtInt).join(" / "));
       text(refs.connHint, "connected / authorized / subscribed");
       text(refs.uptime, fmtUptime(p.uptimeSec));
-      text(refs.uptimeHint, "pool process");
+      text(refs.uptimeHint, "(pool process)");
 
       animateNumber(refs.sharesAccepted, d0.accepted);
       animateNumber(refs.sharesRejected, d0.rejected);
