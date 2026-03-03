@@ -133,7 +133,7 @@ class ApiServer {
     res.on("finish", finishHandler);
 
     if (pathname === "/" || pathname === "/dashboard") {
-      return this.writeHtml(res, 200, renderDashboardHtml(), {
+      return this.writeHtml(res, 200, renderDashboardHtml(this.config), {
         "Cache-Control": "no-store, max-age=0"
       });
     }

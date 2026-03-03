@@ -43,6 +43,7 @@ function loadConfig() {
     apiTlsKey: process.env.API_TLS_KEY || "",
     apiCorsEnabled: toBool(process.env.API_CORS_ENABLED, true),
     apiCorsOrigin: process.env.API_CORS_ORIGIN || "*",
+    enableEntropyLamp: toBool(process.env.ENABLE_ENTROPY_LAMP, true),
 
     powAlgo: (process.env.POW_ALGO || "sha256d").toLowerCase(),
     baseDifficulty: String(process.env.BASE_DIFFICULTY || "16384"),

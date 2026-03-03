@@ -1,6 +1,7 @@
 "use strict";
 
-function renderDashboardHtml() {
+function renderDashboardHtml(config) {
+  const enableEntropyLamp = config && config.enableEntropyLamp !== false;
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -2674,7 +2675,7 @@ function renderDashboardHtml() {
     </section>
 
     <section class="grid reveal">
-      <article class="card chart-card span-12" id="entropy-card">
+      ${enableEntropyLamp ? `<article class="card chart-card span-12" id="entropy-card">
         <div class="chart-head">
           <div class="title">Entropy Lava Lamp</div>
           <div class="chart-head-actions">
@@ -2684,7 +2685,7 @@ function renderDashboardHtml() {
         </div>
         <div class="chart-wrap entropy-wrap"><canvas id="entropy-canvas" aria-label="Entropy lava lamp driven by share hashes"></canvas></div>
         <div id="entropy-hint" class="hint">Cryptographic entropy visualized from live share hashes</div>
-      </article>
+      </article>` : ''}
     </section>
 
     <div class="footer">
@@ -3025,8 +3026,8 @@ function renderDashboardHtml() {
         ctx,
         offscreen,
         offCtx,
-        gridW: 220,
-        gridH: 124,
+        gridW: 880,
+        gridH: 496,
         field: null,
         fieldNext: null,
         imageData: null,
@@ -3046,7 +3047,7 @@ function renderDashboardHtml() {
       };
       state.field = new Float32Array(state.gridW * state.gridH * 3);
       state.fieldNext = new Float32Array(state.gridW * state.gridH * 3);
-      state.blobs = createEntropyBlobs(state.gridW, state.gridH, 14);
+      state.blobs = createEntropyBlobs(state.gridW, state.gridH, 22);
       offscreen.width = state.gridW;
       offscreen.height = state.gridH;
       state.imageData = offCtx.createImageData(state.gridW, state.gridH);
@@ -3056,16 +3057,19 @@ function renderDashboardHtml() {
           const idx = (y * state.gridW + x) * 3;
           const tx = x / Math.max(1, state.gridW - 1);
           const ty = y / Math.max(1, state.gridH - 1);
-          const sky = 1 - ty;
-          state.field[idx] = 8 + (sky * 16) + (Math.sin(tx * Math.PI * 2) * 2);
-          state.field[idx + 1] = 11 + (sky * 19) + (Math.cos((tx * 1.7) + (ty * 2.1)) * 2.6);
-          state.field[idx + 2] = 16 + (sky * 23) + (Math.sin((tx * 2.3) - (ty * 1.8)) * 3);
+          const sky = Math.pow(1 - ty, 1.2);
+          const centerDist = Math.sqrt(Math.pow(tx - 0.5, 2) + Math.pow(ty - 0.5, 2));
+          const vignette = 1 - (centerDist * 0.3);
+          const noise = (Math.sin(tx * 43.7) * Math.cos(ty * 37.3)) * 1.5;
+          state.field[idx] = (6 + (sky * 14) + (Math.sin(tx * Math.PI * 2) * 2) + noise) * vignette;
+          state.field[idx + 1] = (9 + (sky * 17) + (Math.cos((tx * 1.7) + (ty * 2.1)) * 2.6) + noise * 0.8) * vignette;
+          state.field[idx + 2] = (14 + (sky * 21) + (Math.sin((tx * 2.3) - (ty * 1.8)) * 3) + noise * 0.6) * vignette;
         }
       }
 
       const resize = () => {
         const rect = canvas.getBoundingClientRect();
-        const dpr = Math.min(2, window.devicePixelRatio || 1);
+        const dpr = Math.min(3, window.devicePixelRatio || 1);
         const width = Math.max(1, Math.floor(rect.width * dpr));
         const height = Math.max(1, Math.floor(rect.height * dpr));
         if (canvas.width === width && canvas.height === height) return;
@@ -3091,11 +3095,14 @@ function renderDashboardHtml() {
 
     function createEntropyBlobs(gridW, gridH, count) {
       const palette = [
-        [90, 220, 255],
-        [84, 255, 177],
-        [255, 152, 96],
-        [255, 101, 132],
-        [252, 222, 110]
+        [100, 230, 255],
+        [80, 255, 170],
+        [255, 140, 80],
+        [255, 90, 140],
+        [255, 230, 100],
+        [170, 100, 255],
+        [255, 160, 220],
+        [100, 255, 230]
       ];
       const total = Math.max(6, Math.floor(safeNum(count, 12)));
       const blobs = [];
@@ -3161,29 +3168,33 @@ function renderDashboardHtml() {
         const sigByteA = (sigA >>> ((i * 5) % 24)) & 255;
         const sigByteB = (sigB >>> ((i * 7) % 24)) & 255;
         const sigPhase = ((sigByteA / 255) * Math.PI * 2);
-        const steerGain = active * 0.065;
-        const steerX = Math.sin((phase * (1.2 + drive)) + blob.driftPhase + sigPhase + (blob.y * 0.08)) * steerGain;
-        const steerY = Math.cos((phase * (1.05 + drive * 1.2)) - blob.driftPhase - sigPhase + (blob.x * 0.07)) * steerGain;
-        blob.vx = (blob.vx + (steerX * dt)) * 0.986;
-        blob.vy = (blob.vy + (steerY * dt)) * 0.986;
-        blob.vx = Math.max(-1.2, Math.min(1.2, blob.vx));
-        blob.vy = Math.max(-1.2, Math.min(1.2, blob.vy));
-        blob.x += blob.vx * dt * (active * 2.1);
-        blob.y += blob.vy * dt * (active * 2.1);
+        const steerGain = active * 0.085;
+        const curlX = Math.sin((phase * (0.8 + drive * 0.7)) + blob.driftPhase + sigPhase);
+        const curlY = Math.cos((phase * (0.75 + drive * 0.8)) - blob.driftPhase - sigPhase);
+        const posInfluenceX = Math.sin((blob.y / h) * Math.PI * 2.3 + phase * 0.4) * 0.12;
+        const posInfluenceY = Math.cos((blob.x / w) * Math.PI * 1.9 - phase * 0.35) * 0.12;
+        const steerX = (curlX + posInfluenceX) * steerGain;
+        const steerY = (curlY + posInfluenceY) * steerGain;
+        blob.vx = (blob.vx + (steerX * dt)) * 0.992;
+        blob.vy = (blob.vy + (steerY * dt)) * 0.992;
+        blob.vx = Math.max(-1.6, Math.min(1.6, blob.vx));
+        blob.vy = Math.max(-1.6, Math.min(1.6, blob.vy));
+        blob.x += blob.vx * dt * (active * 2.8);
+        blob.y += blob.vy * dt * (active * 2.8);
 
         if (blob.x < -blob.radius) blob.x = w + blob.radius;
         else if (blob.x > w + blob.radius) blob.x = -blob.radius;
         if (blob.y < -blob.radius) blob.y = h + blob.radius;
         else if (blob.y > h + blob.radius) blob.y = -blob.radius;
 
-        const targetRadius = 3.6 + ((sigByteB / 255) * 7.8) + (drive * 2.4);
-        blob.radius = (blob.radius * 0.972) + (targetRadius * 0.028);
-        const pulse = 0.82 + (Math.sin((phase * (1.4 + active * 1.8)) + blob.driftPhase) * (0.12 + active * 0.22));
+        const targetRadius = 4.2 + ((sigByteB / 255) * 9.5) + (drive * 3.2);
+        blob.radius = (blob.radius * 0.978) + (targetRadius * 0.022);
+        const pulse = 0.85 + (Math.sin((phase * (1.4 + active * 1.8)) + blob.driftPhase) * (0.15 + active * 0.28));
         const coreRadius = blob.radius * pulse;
-        const haloRadius = blob.radius * (1.7 + (pulse * 0.35));
-        const activeGain = Math.min(1.4, active + Math.min(0.5, state.flowKick * 0.04));
-        const coreAlpha = (0.09 + (blob.heat * 0.03)) * dt * activeGain;
-        const haloAlpha = (0.028 + (blob.heat * 0.012)) * dt * activeGain;
+        const haloRadius = blob.radius * (1.9 + (pulse * 0.45));
+        const activeGain = Math.min(1.6, active + Math.min(0.6, state.flowKick * 0.05));
+        const coreAlpha = (0.11 + (blob.heat * 0.04)) * dt * activeGain;
+        const haloAlpha = (0.035 + (blob.heat * 0.015)) * dt * activeGain;
         depositEntropyCircle(state, blob.x, blob.y, coreRadius, blob.colorR, blob.colorG, blob.colorB, coreAlpha);
         depositEntropyCircle(state, blob.x, blob.y, haloRadius, blob.colorR, blob.colorG, blob.colorB, haloAlpha);
 
@@ -3209,18 +3220,36 @@ function renderDashboardHtml() {
       for (let y = 0; y < h; y += 1) {
         const yUp = y > 0 ? (y - 1) : (h - 1);
         const yDown = y < (h - 1) ? (y + 1) : 0;
+        const yUp2 = yUp > 0 ? (yUp - 1) : (h - 1);
+        const yDown2 = yDown < (h - 1) ? (yDown + 1) : 0;
         for (let x = 0; x < w; x += 1) {
           const xLeft = x > 0 ? (x - 1) : (w - 1);
           const xRight = x < (w - 1) ? (x + 1) : 0;
+          const xLeft2 = xLeft > 0 ? (xLeft - 1) : (w - 1);
+          const xRight2 = xRight < (w - 1) ? (xRight + 1) : 0;
           const idx = ((y * w) + x) * 3;
           const left = ((y * w) + xLeft) * 3;
           const right = ((y * w) + xRight) * 3;
           const up = ((yUp * w) + x) * 3;
           const down = ((yDown * w) + x) * 3;
+          const upLeft = ((yUp * w) + xLeft) * 3;
+          const upRight = ((yUp * w) + xRight) * 3;
+          const downLeft = ((yDown * w) + xLeft) * 3;
+          const downRight = ((yDown * w) + xRight) * 3;
 
-          next[idx] = (field[idx] * 0.76) + ((field[left] + field[right] + field[up] + field[down]) * 0.06);
-          next[idx + 1] = (field[idx + 1] * 0.76) + ((field[left + 1] + field[right + 1] + field[up + 1] + field[down + 1]) * 0.06);
-          next[idx + 2] = (field[idx + 2] * 0.76) + ((field[left + 2] + field[right + 2] + field[up + 2] + field[down + 2]) * 0.06);
+          const centerWeight = 0.72;
+          const cardinalWeight = 0.055;
+          const diagonalWeight = 0.0175;
+
+          next[idx] = (field[idx] * centerWeight) +
+            ((field[left] + field[right] + field[up] + field[down]) * cardinalWeight) +
+            ((field[upLeft] + field[upRight] + field[downLeft] + field[downRight]) * diagonalWeight);
+          next[idx + 1] = (field[idx + 1] * centerWeight) +
+            ((field[left + 1] + field[right + 1] + field[up + 1] + field[down + 1]) * cardinalWeight) +
+            ((field[upLeft + 1] + field[upRight + 1] + field[downLeft + 1] + field[downRight + 1]) * diagonalWeight);
+          next[idx + 2] = (field[idx + 2] * centerWeight) +
+            ((field[left + 2] + field[right + 2] + field[up + 2] + field[down + 2]) * cardinalWeight) +
+            ((field[upLeft + 2] + field[upRight + 2] + field[downLeft + 2] + field[downRight + 2]) * diagonalWeight);
         }
       }
       state.field = next;
@@ -3272,19 +3301,28 @@ function renderDashboardHtml() {
         const r = field[src];
         const g = field[src + 1];
         const b = field[src + 2];
-        const lum = (r + g + b) / 3;
+        const lum = (r * 0.299) + (g * 0.587) + (b * 0.114);
         const chroma = Math.abs(r - g) + Math.abs(g - b) + Math.abs(b - r);
         const x = i % state.gridW;
+        const y = (i / state.gridW) | 0;
         const contourWave = Math.sin((lum * 0.085) + (x * 0.032) + (sigAUnit * Math.PI * 2));
-        const contour = Math.pow(Math.max(0, contourWave), 7) * (95 + drive * 70);
-        const tone = lum + (chroma * (0.2 + drive * 0.18)) + contour;
-        pixels[dst] = clamp255((r * 0.74) + (tone * (0.24 + sigAUnit * 0.28)));
-        pixels[dst + 1] = clamp255((g * 0.79) + (tone * (0.2 + sigBUnit * 0.24)));
-        pixels[dst + 2] = clamp255((b * 0.68) + (tone * (0.18 + ((sigAUnit + sigBUnit) * 0.12))));
+        const contour = Math.pow(Math.max(0, contourWave), 7) * (28 + drive * 22);
+        const tone = lum + (chroma * (0.12 + drive * 0.10)) + contour;
+
+        const satBoost = 1.25 + (drive * 0.35);
+        const lumTarget = Math.max(r, g, b);
+        const rSat = r + ((r - lum) * satBoost);
+        const gSat = g + ((g - lum) * satBoost);
+        const bSat = b + ((b - lum) * satBoost);
+
+        pixels[dst] = clamp255((rSat * 0.85) + (tone * (0.12 + sigAUnit * 0.10)));
+        pixels[dst + 1] = clamp255((gSat * 0.88) + (tone * (0.10 + sigBUnit * 0.09)));
+        pixels[dst + 2] = clamp255((bSat * 0.82) + (tone * (0.09 + ((sigAUnit + sigBUnit) * 0.07))));
         pixels[dst + 3] = 255;
       }
       offCtx.putImageData(imageData, 0, 0);
       ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(offscreen, 0, 0, canvas.width, canvas.height);
 
@@ -3296,9 +3334,10 @@ function renderDashboardHtml() {
         const y = (blob.y / state.gridH) * canvas.height;
         const radius = (blob.radius / state.gridW) * canvas.width * 2.4;
         const grad = ctx.createRadialGradient(x, y, 0, x, y, radius);
-        const glowAlpha = 0.06 + (drive * 0.14);
+        const glowAlpha = 0.05 + (drive * 0.11);
         grad.addColorStop(0, "rgba(" + Math.round(blob.colorR) + "," + Math.round(blob.colorG) + "," + Math.round(blob.colorB) + "," + glowAlpha.toFixed(3) + ")");
-        grad.addColorStop(0.6, "rgba(" + Math.round(blob.colorR) + "," + Math.round(blob.colorG) + "," + Math.round(blob.colorB) + "," + (glowAlpha * 0.35).toFixed(3) + ")");
+        grad.addColorStop(0.5, "rgba(" + Math.round(blob.colorR) + "," + Math.round(blob.colorG) + "," + Math.round(blob.colorB) + "," + (glowAlpha * 0.45).toFixed(3) + ")");
+        grad.addColorStop(0.8, "rgba(" + Math.round(blob.colorR) + "," + Math.round(blob.colorG) + "," + Math.round(blob.colorB) + "," + (glowAlpha * 0.15).toFixed(3) + ")");
         grad.addColorStop(1, "rgba(" + Math.round(blob.colorR) + "," + Math.round(blob.colorG) + "," + Math.round(blob.colorB) + ",0)");
         ctx.fillStyle = grad;
         ctx.fillRect(x - radius, y - radius, radius * 2, radius * 2);
@@ -3306,10 +3345,48 @@ function renderDashboardHtml() {
       ctx.restore();
 
       ctx.save();
+      ctx.globalCompositeOperation = "screen";
+      for (let i = 0; i < state.blobs.length; i += 1) {
+        const blob = state.blobs[i];
+        const x = (blob.x / state.gridW) * canvas.width;
+        const y = (blob.y / state.gridH) * canvas.height;
+        const radius = (blob.radius / state.gridW) * canvas.width * 0.9;
+        const highlightX = x - (radius * 0.25);
+        const highlightY = y - (radius * 0.25);
+        const highlight = ctx.createRadialGradient(highlightX, highlightY, 0, highlightX, highlightY, radius * 1.2);
+        const highlightAlpha = 0.08 + (drive * 0.15);
+        highlight.addColorStop(0, "rgba(255,255,255," + highlightAlpha.toFixed(3) + ")");
+        highlight.addColorStop(0.3, "rgba(255,255,255," + (highlightAlpha * 0.4).toFixed(3) + ")");
+        highlight.addColorStop(1, "rgba(255,255,255,0)");
+        ctx.fillStyle = highlight;
+        ctx.fillRect(highlightX - radius * 1.2, highlightY - radius * 1.2, radius * 2.4, radius * 2.4);
+      }
+      ctx.restore();
+
+      ctx.save();
+      ctx.globalCompositeOperation = "screen";
+      ctx.filter = "blur(20px)";
+      for (let i = 0; i < state.blobs.length; i += 1) {
+        const blob = state.blobs[i];
+        const x = (blob.x / state.gridW) * canvas.width;
+        const y = (blob.y / state.gridH) * canvas.height;
+        const radius = (blob.radius / state.gridW) * canvas.width * 3.5;
+        const bloom = ctx.createRadialGradient(x, y, 0, x, y, radius);
+        const bloomAlpha = 0.04 + (drive * 0.08);
+        bloom.addColorStop(0, "rgba(" + Math.round(blob.colorR) + "," + Math.round(blob.colorG) + "," + Math.round(blob.colorB) + "," + bloomAlpha.toFixed(3) + ")");
+        bloom.addColorStop(0.7, "rgba(" + Math.round(blob.colorR) + "," + Math.round(blob.colorG) + "," + Math.round(blob.colorB) + "," + (bloomAlpha * 0.2).toFixed(3) + ")");
+        bloom.addColorStop(1, "rgba(" + Math.round(blob.colorR) + "," + Math.round(blob.colorG) + "," + Math.round(blob.colorB) + ",0)");
+        ctx.fillStyle = bloom;
+        ctx.fillRect(x - radius, y - radius, radius * 2, radius * 2);
+      }
+      ctx.filter = "none";
+      ctx.restore();
+
+      ctx.save();
       const topGlow = ctx.createLinearGradient(0, 0, 0, canvas.height);
-      topGlow.addColorStop(0, "rgba(146, 232, 255, 0.08)");
-      topGlow.addColorStop(0.45, "rgba(18, 24, 34, 0.02)");
-      topGlow.addColorStop(1, "rgba(2, 4, 8, 0.24)");
+      topGlow.addColorStop(0, "rgba(146, 232, 255, 0.04)");
+      topGlow.addColorStop(0.45, "rgba(18, 24, 34, 0.01)");
+      topGlow.addColorStop(1, "rgba(2, 4, 8, 0.16)");
       ctx.fillStyle = topGlow;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -3322,8 +3399,8 @@ function renderDashboardHtml() {
         canvas.width * 0.72
       );
       vignette.addColorStop(0, "rgba(0,0,0,0)");
-      vignette.addColorStop(0.72, "rgba(0,0,0,0.18)");
-      vignette.addColorStop(1, "rgba(0,0,0,0.34)");
+      vignette.addColorStop(0.72, "rgba(0,0,0,0.12)");
+      vignette.addColorStop(1, "rgba(0,0,0,0.24)");
       ctx.fillStyle = vignette;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.restore();

@@ -48,6 +48,7 @@ services:
       API_TLS_KEY: ${API_TLS_KEY:-}
       API_CORS_ENABLED: ${API_CORS_ENABLED:-true}
       API_CORS_ORIGIN: ${API_CORS_ORIGIN:-*}
+      ENABLE_ENTROPY_LAMP: ${ENABLE_ENTROPY_LAMP:-true}
 
       # === Mining Algorithm & Difficulty ===
       POW_ALGO: ${POW_ALGO:-sha256d}
