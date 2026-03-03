@@ -974,26 +974,28 @@ function renderDashboardHtml() {
       margin-top: 3px;
     }
 
-    @media (min-width: 1181px) {
-      .runtime-rows .row.payout-row {
-        grid-template-columns: minmax(120px, 170px) minmax(0, 1fr) auto;
-        align-items: center;
-        gap: 10px;
-      }
+    .runtime-rows .row.payout-row {
+      padding: 6px 8px;
+    }
 
-      .runtime-rows .row.payout-row .k {
-        white-space: nowrap;
-      }
+    .runtime-payout-inline {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 6px;
+      min-width: 0;
+    }
 
-      .runtime-rows .row.payout-row .v {
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-      }
+    .runtime-payout-inline .v {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      overflow-wrap: normal;
+      word-break: normal;
+    }
 
-      .runtime-rows .row.payout-row .runtime-action-btn {
-        margin-top: 0;
-      }
+    .runtime-payout-inline .runtime-action-btn {
+      margin-top: 0;
     }
 
     .runtime-action-btn {
@@ -1008,6 +1010,19 @@ function renderDashboardHtml() {
       text-decoration: none;
       cursor: pointer;
       transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease, opacity 0.2s ease;
+    }
+
+    .runtime-action-btn.icon-only {
+      width: 26px;
+      height: 26px;
+      border-radius: 999px;
+      padding: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      letter-spacing: 0;
+      line-height: 1;
     }
 
     .runtime-action-btn:hover {
@@ -1358,14 +1373,20 @@ function renderDashboardHtml() {
       white-space: nowrap;
     }
 
+    .fleet-leading-meta {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      min-width: 0;
+      white-space: nowrap;
+    }
+
     .fleet-leading-text {
       font-size: 11px;
       color: var(--ink-2);
       text-align: left;
       white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      max-width: 100%;
+      flex: 0 0 auto;
     }
 
     .fleet-leading-hint {
@@ -1376,7 +1397,13 @@ function renderDashboardHtml() {
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      max-width: 100%;
+      min-width: 0;
+      flex: 1 1 auto;
+    }
+
+    .fleet-leading-hint::before {
+      content: "• ";
+      opacity: 0.72;
     }
 
     .difficulty-insights {
@@ -1516,9 +1543,9 @@ function renderDashboardHtml() {
       background:
         linear-gradient(180deg, rgba(255, 255, 255, 0.025), rgba(255, 255, 255, 0.01)),
         rgba(12, 12, 12, 0.72);
-      padding: 10px;
+      padding: 8px;
       display: grid;
-      gap: 7px;
+      gap: 5px;
       min-height: 286px;
       overflow: hidden;
       align-content: start;
@@ -1528,9 +1555,11 @@ function renderDashboardHtml() {
       border: 1px solid var(--line-soft);
       border-radius: 10px;
       background: rgba(255, 255, 255, 0.02);
-      padding: 7px 8px;
-      display: grid;
-      gap: 4px;
+      padding: 6px 8px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
     }
 
     .spectrometer-row.placeholder {
@@ -1538,36 +1567,33 @@ function renderDashboardHtml() {
       opacity: 0.68;
     }
 
-    .spectrometer-row-main {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-      min-width: 0;
-    }
-
     .spectrometer-rank {
       font-family: var(--mono);
       color: var(--ink-2);
       font-size: 11px;
       min-width: 24px;
+      flex: 0 0 auto;
     }
 
     .spectrometer-pct {
       font-family: var(--mono);
       color: var(--cyan);
-      font-size: 12px;
+      font-size: 11px;
       font-weight: 700;
       white-space: nowrap;
+      flex: 0 0 auto;
+      margin-left: auto;
     }
 
-    .spectrometer-row-sub {
+    .spectrometer-row-line {
       font-family: var(--mono);
       font-size: 11px;
       color: var(--ink-2);
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
+      flex: 1 1 auto;
+      min-width: 0;
     }
 
     .spectrometer-empty {
@@ -2392,17 +2418,17 @@ function renderDashboardHtml() {
         <div id="pool-hashrate-hint" class="hint">estimated from live worker deltas</div>
       </article>
       <article class="card stat-card span-3">
-        <div class="label"><span class="label-icon">✓</span>Accepted / Min</div>
+        <div class="label"><span class="label-icon">✅</span>Accepted / Min</div>
         <div id="rpm-accepted" class="value">-</div>
         <div id="rpm-accepted-hint" class="hint">live throughput</div>
       </article>
       <article class="card stat-card span-3">
-        <div class="label"><span class="label-icon">◎</span>Reject Ratio</div>
+        <div class="label"><span class="label-icon">🚫</span>Reject Ratio</div>
         <div id="ratio-reject" class="value">-</div>
         <div id="ratio-reject-hint" class="hint">of total shares</div>
       </article>
       <article class="card stat-card span-3">
-        <div class="label"><span class="label-icon">◷</span>Last Share</div>
+        <div class="label"><span class="label-icon">🕒</span>Last Share</div>
         <div id="last-share-age" class="value">-</div>
         <div id="last-share-worker" class="hint">worker: -</div>
       </article>
@@ -2410,22 +2436,22 @@ function renderDashboardHtml() {
 
     <section class="grid reveal kpi-grid">
       <article class="card stat-card span-3">
-        <div class="label">Current Height</div>
+        <div class="label"><span class="label-icon">🧱</span>Current Height</div>
         <div id="height" class="value">-</div>
         <div id="height-hint" class="hint">network tip</div>
       </article>
       <article class="card stat-card span-3">
-        <div class="label">Active Job</div>
+        <div class="label"><span class="label-icon">🛠️</span>Active Job</div>
         <div id="job-id" class="value">-</div>
         <div id="job-meta" class="hint">-</div>
       </article>
       <article class="card stat-card span-3">
-        <div class="label">Connections</div>
+        <div class="label"><span class="label-icon">🌐</span>Connections</div>
         <div id="conn" class="value">-</div>
         <div id="conn-hint" class="hint">connected / auth / sub</div>
       </article>
       <article class="card stat-card span-3">
-        <div class="label"><span class="label-icon">🏅</span>Best Share (Session)</div>
+        <div class="label"><span class="label-icon">🥇</span>Best Share (Session)</div>
         <div id="best-share-session" class="value">-</div>
         <div id="best-share-session-hint" class="hint">No shares yet</div>
       </article>
@@ -2433,17 +2459,17 @@ function renderDashboardHtml() {
 
     <section class="grid reveal kpi-grid">
       <article class="card stat-card span-3">
-        <div class="label"><span class="label-icon">★</span>Best Share (All Time)</div>
+        <div class="label"><span class="label-icon">👑</span>Best Share (All Time)</div>
         <div id="best-share-alltime" class="value">-</div>
         <div id="best-share-alltime-hint" class="hint">No shares yet</div>
       </article>
       <article class="card stat-card span-3">
-        <div class="label"><span class="label-icon">⏱</span>Time To Block (Est)</div>
+        <div class="label"><span class="label-icon">⏳</span>Time To Block (Est)</div>
         <div id="ttb-estimate" class="value">-</div>
         <div id="ttb-hint" class="hint">Based on current hashrate</div>
       </article>
       <article class="card stat-card span-3">
-        <div class="label"><span class="label-icon">Σ</span>Expected Blocks (EB)</div>
+        <div class="label"><span class="label-icon">🎯</span>Expected Blocks (EB)</div>
         <div id="expected-blocks" class="value highlight">-</div>
         <div id="expected-blocks-hint" class="hint">No accepted share work yet</div>
         <div class="spectrometer-progress">
@@ -2451,7 +2477,7 @@ function renderDashboardHtml() {
         </div>
       </article>
       <article class="card stat-card span-3">
-        <div class="label"><span class="label-icon">⛓</span>SHA256d Difficulty</div>
+        <div class="label"><span class="label-icon">🗻</span>SHA256d Difficulty</div>
         <div id="network-difficulty" class="value">-</div>
         <div id="network-difficulty-hint" class="hint">Waiting for templates</div>
       </article>
@@ -2461,11 +2487,9 @@ function renderDashboardHtml() {
       <article class="card chart-card span-6">
         <div class="chart-head">
           <div class="title">Share Spectrometer</div>
-          <div class="meta" id="top-shares-meta">last 5</div>
+          <div class="meta" id="top-shares-meta">last 12</div>
         </div>
-        <div class="spectrometer-list" id="top-shares-list">
-          <div class="spectrometer-empty">No accepted shares yet</div>
-        </div>
+        <div class="spectrometer-list" id="top-shares-list"></div>
       </article>
 
       <article class="card chart-card span-6">
@@ -2490,7 +2514,7 @@ function renderDashboardHtml() {
       <article class="card table-card span-4">
         <div class="chart-head">
           <div class="title">SHA256 Miners Active (1h)</div>
-          <div class="meta">coinbase tags</div>
+          <div class="meta">coinbase tags • 1h block counts</div>
         </div>
         <div class="rows" id="battlefield-hourly">
           <div class="empty-state">No miner tags observed yet</div>
@@ -2527,10 +2551,12 @@ function renderDashboardHtml() {
               <div class="fleet-prob-value" id="fleet-prob-month">-</div>
             </div>
             <div class="fleet-prob-cell fleet-leading-inline">
-              <div class="fleet-leading-label">Best Leading Zeros (Since Last Block)</div>
-              <div class="fleet-leading-value" id="leading-zeros-bar">░░░░░░░░░░</div>
-              <div class="fleet-leading-text" id="leading-zeros-text">0 of ? needed</div>
-              <div class="fleet-leading-hint" id="leading-zeros-hint">Awaiting shares</div>
+              <div class="fleet-leading-label">Best Leading Zeros (Since Last Found Block)</div>
+              <div class="fleet-leading-value" id="leading-zeros-bar">░░░░░░░░░░░░░░░</div>
+              <div class="fleet-leading-meta">
+                <span class="fleet-leading-text" id="leading-zeros-text">0 of ? needed</span>
+                <span class="fleet-leading-hint" id="leading-zeros-hint">Tracking since pool start</span>
+              </div>
             </div>
           </div>
           <div class="fleet-prob-expect" id="fleet-prob-expect">Waiting for hashrate and difficulty to estimate expected time-to-block.</div>
@@ -2626,10 +2652,14 @@ function renderDashboardHtml() {
           <div class="row"><div class="k">Last Template Age</div><div id="tmpl-age" class="v">-</div></div>
           <div class="row"><div class="k">Last Broadcast Age</div><div id="bcast-age" class="v">-</div></div>
           <div class="row"><div class="k">Last Broadcast Clients</div><div id="bcast-clients" class="v">-</div></div>
+          <div class="row"><div class="k">RPC Error Rate (1h)</div><div id="rpc-error-rate-1h" class="v">-</div></div>
+          <div class="row"><div class="k">Share Validation Latency (1h)</div><div id="share-validation-latency" class="v">-</div></div>
           <div class="row payout-row">
             <div class="k">Payout Address</div>
-            <div id="payout-address" class="v">-</div>
-            <a id="payout-explorer-btn" class="runtime-action-btn disabled" href="#" target="_blank" rel="noopener noreferrer" aria-disabled="true" tabindex="-1">Explorer</a>
+            <div class="runtime-payout-inline">
+              <div id="payout-address" class="v">-</div>
+              <a id="payout-explorer-btn" class="runtime-action-btn icon-only disabled" href="#" target="_blank" rel="noopener noreferrer" aria-label="Open payout address in explorer" title="Open payout address in explorer" aria-disabled="true" tabindex="-1">🔗</a>
+            </div>
           </div>
           <div class="row"><div class="k">Last Found Block</div><div id="last-found-hash" class="v">-</div></div>
           <div class="row"><div class="k">Last Found Age</div><div id="last-found-age" class="v">-</div></div>
@@ -2744,6 +2774,8 @@ function renderDashboardHtml() {
       tmplAge: d.getElementById("tmpl-age"),
       bcastAge: d.getElementById("bcast-age"),
       bcastClients: d.getElementById("bcast-clients"),
+      rpcErrorRate1h: d.getElementById("rpc-error-rate-1h"),
+      shareValidationLatency: d.getElementById("share-validation-latency"),
       payoutAddress: d.getElementById("payout-address"),
       payoutExplorerBtn: d.getElementById("payout-explorer-btn"),
       lastFoundHash: d.getElementById("last-found-hash"),
@@ -3653,6 +3685,23 @@ function renderDashboardHtml() {
       return (n * 100).toFixed(n < 0.1 ? 2 : 1) + "%";
     }
 
+    function fmtRpcErrorRate1h(ratePct, errors, calls) {
+      const totalCalls = Math.max(0, Math.floor(safeNum(calls, 0)));
+      if (totalCalls <= 0) return "-";
+      const totalErrors = Math.max(0, Math.floor(safeNum(errors, 0)));
+      const pct = Math.max(0, safeNum(ratePct, 0));
+      const pctText = pct >= 10 ? pct.toFixed(1) : pct.toFixed(2);
+      return pctText + "% (" + fmtInt(totalErrors) + "/" + fmtInt(totalCalls) + ")";
+    }
+
+    function fmtShareValidationLatency(p50Ms, p95Ms, samples) {
+      const sampleCount = Math.max(0, Math.floor(safeNum(samples, 0)));
+      if (sampleCount <= 0) return "-";
+      const p50 = Math.max(0, Math.round(safeNum(p50Ms, 0)));
+      const p95 = Math.max(0, Math.round(safeNum(p95Ms, 0)));
+      return p50 + "ms p50 / " + p95 + "ms p95";
+    }
+
     function normalizeDifficultyTrend(value) {
       const v = String(value || "").toLowerCase();
       if (v === "rising" || v === "falling") return v;
@@ -4252,6 +4301,16 @@ function renderDashboardHtml() {
       text(refs.tmplAge, fmtTsAge(s.lastTemplateAt));
       text(refs.bcastAge, fmtTsAge(s.lastBroadcastAt));
       text(refs.bcastClients, fmtInt(safeNum(s.lastBroadcastClients, 0)));
+      text(refs.rpcErrorRate1h, fmtRpcErrorRate1h(
+        safeNum(s.rpcErrorRate1hPct, 0),
+        safeNum(s.rpcErrors1h, 0),
+        safeNum(s.rpcCalls1h, 0)
+      ));
+      text(refs.shareValidationLatency, fmtShareValidationLatency(
+        safeNum(s.shareValidationLatencyP50Ms, 0),
+        safeNum(s.shareValidationLatencyP95Ms, 0),
+        safeNum(s.shareValidationSamples1h, 0)
+      ));
       const payoutAddress = typeof runtime.poolPayoutAddress === "string" ? runtime.poolPayoutAddress.trim() : "";
       const payoutExplorerBase = typeof runtime.poolPayoutAddressExplorerBase === "string"
         ? runtime.poolPayoutAddressExplorerBase.trim()
@@ -4665,7 +4724,7 @@ function renderDashboardHtml() {
     }
 
     function buildLeadingZerosBar(bestLeadingZeros, neededLeadingZeros) {
-      const width = 10;
+      const width = 15;
       const best = Math.max(0, Math.floor(safeNum(bestLeadingZeros, 0)));
       const needed = Math.max(0, Math.floor(safeNum(neededLeadingZeros, 0)));
       if (best <= 0 && needed <= 0) {
@@ -4704,7 +4763,7 @@ function renderDashboardHtml() {
         text(refs.expectedBlocksHint, "No accepted share work yet");
       }
 
-      const visibleRows = 5;
+      const visibleRows = 12;
       const topShares = sanitizeTopShares(derived && derived.topShares, 20);
       const latestShares = topShares
         .slice()
@@ -4721,11 +4780,9 @@ function renderDashboardHtml() {
         if (!share) {
           html += \`
             <div class="spectrometer-row placeholder">
-              <div class="spectrometer-row-main">
-                <span class="spectrometer-rank">#\${i + 1}</span>
-                <span class="spectrometer-pct">-</span>
-              </div>
-              <div class="spectrometer-row-sub">Waiting for accepted shares</div>
+              <span class="spectrometer-rank">#\${i + 1}</span>
+              <span class="spectrometer-row-line"></span>
+              <span class="spectrometer-pct"></span>
             </div>
           \`;
           continue;
@@ -4741,11 +4798,9 @@ function renderDashboardHtml() {
           : "no-hash";
         html += \`
           <div class="spectrometer-row">
-            <div class="spectrometer-row-main">
-              <span class="spectrometer-rank">#\${i + 1}</span>
-              <span class="spectrometer-pct">\${fmtPctFromRatio(pct)} of block</span>
-            </div>
-            <div class="spectrometer-row-sub">\${escapeHtml(worker)} • \${escapeHtml(whenText)} • diff \${fmtDifficulty(share.shareDifficulty)} • \${escapeHtml(hashShort)}</div>
+            <span class="spectrometer-rank">#\${i + 1}</span>
+            <span class="spectrometer-row-line">\${escapeHtml(worker)} • \${escapeHtml(whenText)} • diff \${fmtDifficulty(share.shareDifficulty)} • \${escapeHtml(hashShort)}</span>
+            <span class="spectrometer-pct">\${fmtPctFromRatio(pct)} of block</span>
           </div>
         \`;
       }
@@ -4906,7 +4961,7 @@ function renderDashboardHtml() {
         hourlyHtml += \`
           <div class="row">
             <div class="k">\${escapeHtml(name)}</div>
-            <div class="v">\${fmtInt(count)} blocks</div>
+            <div class="v">\${fmtInt(count)}</div>
           </div>
         \`;
       }

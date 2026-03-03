@@ -24,6 +24,8 @@ const EMPTY_BUFFER = Buffer.alloc(0);
 const MAX_RECENT_SHARE_SAMPLES = 240;
 const MAX_TOP_SHARES = 20;
 const MIN_SLICING_COMPATIBLE_MINERS = 2;
+const SHARE_METRIC_WINDOW_MS = 60 * 60 * 1000;
+const MAX_SHARE_LATENCY_SAMPLES = 6000;
 
 /**
  * Stratum V1 server for mining pool protocol.
@@ -54,6 +56,7 @@ class StratumServer extends EventEmitter {
     this.connectionsByIp = new Map(); // IP -> Set of client IDs
     this.connectionAttempts = new Map(); // IP -> Array of timestamps
     this.rateLimitCleanupInterval = null;
+    this.shareValidationLatencySamples = [];
     if (!Array.isArray(this.stats.recentShares)) {
       this.stats.recentShares = [];
     }
@@ -62,6 +65,9 @@ class StratumServer extends EventEmitter {
     }
     this.stats.expectedBlocks = sanitizePositiveFloat(this.stats.expectedBlocks);
     this.stats.bestLeadingZeros = sanitizePositiveInt(this.stats.bestLeadingZeros);
+    this.stats.shareValidationSamples1h = sanitizePositiveInt(this.stats.shareValidationSamples1h);
+    this.stats.shareValidationLatencyP50Ms = sanitizePositiveInt(this.stats.shareValidationLatencyP50Ms);
+    this.stats.shareValidationLatencyP95Ms = sanitizePositiveInt(this.stats.shareValidationLatencyP95Ms);
   }
 
   start() {
@@ -642,6 +648,7 @@ class StratumServer extends EventEmitter {
     const start = Number(startedAt || 0);
     if (!Number.isFinite(start) || start <= 0) return;
     const elapsedMs = Math.max(0, nowMs() - start);
+    this.recordShareValidationLatency(elapsedMs);
 
     const prevAck = Number(client.submitAckEmaMs || 0);
     client.submitAckEmaMs = prevAck > 0
@@ -654,6 +661,34 @@ class StratumServer extends EventEmitter {
       0,
       Math.min(1, (prevRejectRate * 0.8) + (sampleReject * 0.2))
     );
+  }
+
+  resetRuntimeMetrics() {
+    this.shareValidationLatencySamples = [];
+    this.stats.shareValidationSamples1h = 0;
+    this.stats.shareValidationLatencyP50Ms = 0;
+    this.stats.shareValidationLatencyP95Ms = 0;
+  }
+
+  recordShareValidationLatency(elapsedMs) {
+    const t = nowMs();
+    const ms = sanitizePositiveInt(elapsedMs);
+    this.shareValidationLatencySamples.push({ t, ms });
+
+    const cutoff = t - SHARE_METRIC_WINDOW_MS;
+    while (this.shareValidationLatencySamples.length > 0 && this.shareValidationLatencySamples[0].t < cutoff) {
+      this.shareValidationLatencySamples.shift();
+    }
+
+    if (this.shareValidationLatencySamples.length > MAX_SHARE_LATENCY_SAMPLES) {
+      this.shareValidationLatencySamples.splice(0, this.shareValidationLatencySamples.length - MAX_SHARE_LATENCY_SAMPLES);
+    }
+
+    const samples = this.shareValidationLatencySamples.map((s) => s.ms).sort((a, b) => a - b);
+    const total = samples.length;
+    this.stats.shareValidationSamples1h = total;
+    this.stats.shareValidationLatencyP50Ms = percentileFromSorted(samples, 0.5);
+    this.stats.shareValidationLatencyP95Ms = percentileFromSorted(samples, 0.95);
   }
 
   recordShareSample(type, share, client) {
@@ -1766,6 +1801,14 @@ function rememberTopShare(stats, entry, maxItems) {
     list.length = keep;
   }
   stats.topShares = list;
+}
+
+function percentileFromSorted(sortedValues, percentile) {
+  if (!Array.isArray(sortedValues) || sortedValues.length === 0) return 0;
+  const p = Math.max(0, Math.min(1, Number(percentile) || 0));
+  const rank = Math.ceil(p * sortedValues.length) - 1;
+  const idx = Math.max(0, Math.min(sortedValues.length - 1, rank));
+  return sanitizePositiveInt(sortedValues[idx]);
 }
 
 function sanitizePositiveFloat(value) {

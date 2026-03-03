@@ -29,6 +29,8 @@ const MAX_COINBASE_PIECES_CACHE = 32;
 const MAX_DIFFICULTY_SAMPLES = 360;
 const DIFFICULTY_TREND_WINDOW = 24;
 const DIFFICULTY_TREND_EPSILON_PCT = 0.5;
+const ROLLING_METRIC_WINDOW_MS = 60 * 60 * 1000;
+const ROLLING_METRIC_BUCKET_MS = 60 * 1000;
 const BLOCK_STATUS_PENDING = "pending";
 const BLOCK_STATUS_CONFIRMED = "confirmed";
 const BLOCK_STATUS_ORPHANED = "orphaned";
@@ -80,11 +82,15 @@ class JobManager extends EventEmitter {
     this.speculativePrebuildSeq = 0;
     this.lastNonceSpaceRefreshAt = 0;
     this.blockArchaeologyFailureStreak = 0;
+    this.rpcCallBuckets = [];
     this.stats.recentBlocks = sanitizeRecentBlocksForRuntime(this.stats.recentBlocks);
     this.stats.networkBattlefield = sanitizeNetworkBattlefieldForRuntime(this.stats.networkBattlefield);
     this.stats.recentDifficultySamples = sanitizeRecentDifficultySamplesForRuntime(this.stats.recentDifficultySamples);
     this.stats.templatePollFailureStreak = this.templatePollFailureStreak;
     this.stats.totalRewardSats = initializeTotalRewardSats(this.stats);
+    this.stats.rpcCalls1h = Math.max(0, Math.floor(Number(this.stats.rpcCalls1h) || 0));
+    this.stats.rpcErrors1h = Math.max(0, Math.floor(Number(this.stats.rpcErrors1h) || 0));
+    this.stats.rpcErrorRate1hPct = Math.max(0, Number(this.stats.rpcErrorRate1hPct) || 0);
     applyDifficultyObservatoryStats(this.stats, this.stats.recentDifficultySamples);
   }
 
@@ -390,14 +396,23 @@ class JobManager extends EventEmitter {
     try {
       tpl = await this.rpc.getBlockTemplate(null);
     } catch (err) {
+      this.recordRpcCallOutcome(false);
       this.recordTemplateFetchFailure(source, err);
       throw err;
     }
 
     const fetchMs = nowMs() - startTime;
+    this.recordRpcCallOutcome(true);
     this.recordTemplateFetchLatency(fetchMs);
     this.recordTemplateFetchSuccess(source, fetchMs);
     this.handleTemplate(tpl, source);
+  }
+
+  resetRuntimeMetrics() {
+    this.rpcCallBuckets = [];
+    this.stats.rpcCalls1h = 0;
+    this.stats.rpcErrors1h = 0;
+    this.stats.rpcErrorRate1hPct = 0;
   }
 
   recordTemplateFetchFailure(source, err) {
@@ -443,6 +458,40 @@ class JobManager extends EventEmitter {
     } else {
       this.stats.avgTemplateFetchMs = fetchMs;
     }
+  }
+
+  recordRpcCallOutcome(ok) {
+    const now = nowMs();
+    const minuteStart = now - (now % ROLLING_METRIC_BUCKET_MS);
+    let bucket = this.rpcCallBuckets.length > 0
+      ? this.rpcCallBuckets[this.rpcCallBuckets.length - 1]
+      : null;
+
+    if (!bucket || bucket.minuteStart !== minuteStart) {
+      bucket = { minuteStart, attempts: 0, errors: 0 };
+      this.rpcCallBuckets.push(bucket);
+    }
+
+    bucket.attempts += 1;
+    if (!ok) bucket.errors += 1;
+
+    const cutoff = now - ROLLING_METRIC_WINDOW_MS;
+    while (this.rpcCallBuckets.length > 0) {
+      const head = this.rpcCallBuckets[0];
+      if ((head.minuteStart + ROLLING_METRIC_BUCKET_MS) > cutoff) break;
+      this.rpcCallBuckets.shift();
+    }
+
+    let attempts = 0;
+    let errors = 0;
+    for (let i = 0; i < this.rpcCallBuckets.length; i += 1) {
+      attempts += this.rpcCallBuckets[i].attempts;
+      errors += this.rpcCallBuckets[i].errors;
+    }
+
+    this.stats.rpcCalls1h = attempts;
+    this.stats.rpcErrors1h = errors;
+    this.stats.rpcErrorRate1hPct = attempts > 0 ? (errors / attempts) * 100 : 0;
   }
 
   recordDifficultySample(template) {

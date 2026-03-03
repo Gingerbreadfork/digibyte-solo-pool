@@ -416,6 +416,12 @@ class ApiServer {
     this.stats.lastShareWorker = null;
     this.stats.lastShareHash = null;
     this.stats.recentShares = [];
+    this.stats.rpcCalls1h = 0;
+    this.stats.rpcErrors1h = 0;
+    this.stats.rpcErrorRate1hPct = 0;
+    this.stats.shareValidationSamples1h = 0;
+    this.stats.shareValidationLatencyP50Ms = 0;
+    this.stats.shareValidationLatencyP95Ms = 0;
 
     // Restore all-time bests
     this.stats.bestShareDifficulty = bestShareDiff;
@@ -433,6 +439,9 @@ class ApiServer {
     this.stats.recentBlocks = recentBlocks;
     this.stats.networkBattlefield = networkBattlefield;
     this.stats.topShares = topShares;
+
+    this.jobManager.resetRuntimeMetrics?.();
+    this.stratumServer.resetRuntimeMetrics?.();
 
     // Reset pool start time for session stats
     this.startedAt = Date.now();
