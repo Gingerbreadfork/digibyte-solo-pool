@@ -94,15 +94,22 @@ async function main() {
   const api = new ApiServer(config, logger.child("api"), stats, jobManager, stratum);
   api.start();
 
+  let shuttingDown = false;
   const shutdown = async (signal) => {
+    if (shuttingDown) return;
+    shuttingDown = true;
     logger.info("Shutting down", { signal });
+    let exitCode = 0;
     try {
       stratum.stop();
       api.stop();
       await jobManager.stop();
       await statsPersistence.stop();
+    } catch (err) {
+      logger.error("Shutdown failed", { error: err });
+      exitCode = 1;
     } finally {
-      process.exit(0);
+      process.exit(exitCode);
     }
   };
 

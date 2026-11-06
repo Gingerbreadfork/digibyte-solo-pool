@@ -52,6 +52,7 @@ class StratumServer extends EventEmitter {
     this.clients = new Map();
     this.clientSeq = 0;
     this.extranonceCounter = 0n;
+    this.onJob = null;
     this.onBlockAccepted = null;
 
     // Rate limiting and connection tracking
@@ -80,9 +81,10 @@ class StratumServer extends EventEmitter {
       this.emit("error", err);
     });
 
-    this.jobManager.on("job", (job) => {
+    this.onJob = (job) => {
       this.broadcastJob(job);
-    });
+    };
+    this.jobManager.on("job", this.onJob);
     this.onBlockAccepted = (evt) => {
       this.resetLeadingZerosSinceLastBlock(evt);
     };
@@ -118,6 +120,10 @@ class StratumServer extends EventEmitter {
     if (this.server) {
       this.server.close();
       this.server = null;
+    }
+    if (this.onJob) {
+      this.jobManager.off("job", this.onJob);
+      this.onJob = null;
     }
     if (this.onBlockAccepted) {
       this.jobManager.off("blockAccepted", this.onBlockAccepted);
