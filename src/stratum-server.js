@@ -9,7 +9,8 @@ const {
   formatPrevhashForStratum,
   normalizeHex,
   toFixedHexU32,
-  compactBitsToDifficulty
+  compactBitsToDifficulty,
+  secretsEqual
 } = require("./utils");
 
 const STRATUM_ERRORS = {
@@ -468,7 +469,7 @@ class StratumServer extends EventEmitter {
 
     if (!this.config.allowAnyUser) {
       const token = kv.token || kv.auth || "";
-      if (!this.config.minerAuthToken || token !== this.config.minerAuthToken) {
+      if (!this.config.minerAuthToken || !secretsEqual(token, this.config.minerAuthToken)) {
         this.logger.warn("Miner authorization failed", {
           clientId: client.id,
           remote: client.remote,
@@ -479,7 +480,7 @@ class StratumServer extends EventEmitter {
       }
     } else if (this.config.minerAuthToken) {
       const token = kv.token || kv.auth || "";
-      if (token !== this.config.minerAuthToken) {
+      if (!secretsEqual(token, this.config.minerAuthToken)) {
         this.logger.warn("Miner authorization failed", {
           clientId: client.id,
           remote: client.remote,

@@ -230,11 +230,18 @@ function parsePasswordKv(password) {
   if (!password) return out;
   const parts = String(password).split(/[;,]/);
   for (const part of parts) {
-    const [k, v] = part.split("=");
-    if (!k || v === undefined) continue;
-    out[k.trim().toLowerCase()] = v.trim();
+    const eq = part.indexOf("=");
+    if (eq <= 0) continue;
+    out[part.slice(0, eq).trim().toLowerCase()] = part.slice(eq + 1).trim();
   }
   return out;
+}
+
+/** Constant-time string comparison for shared secrets. */
+function secretsEqual(a, b) {
+  const ha = crypto.createHash("sha256").update(String(a)).digest();
+  const hb = crypto.createHash("sha256").update(String(b)).digest();
+  return crypto.timingSafeEqual(ha, hb);
 }
 
 module.exports = {
@@ -261,5 +268,6 @@ module.exports = {
   nowMs,
   formatPrevhashForStratum,
   splitRulesCsv,
-  parsePasswordKv
+  parsePasswordKv,
+  secretsEqual
 };
