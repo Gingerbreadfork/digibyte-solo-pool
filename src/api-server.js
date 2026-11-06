@@ -250,13 +250,15 @@ class ApiServer {
   }
 
   handleSSE(req, res) {
-    // Set SSE headers
-    res.writeHead(200, {
+    const headers = {
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache",
-      "Connection": "keep-alive",
-      "Access-Control-Allow-Origin": this.config.apiCorsEnabled ? this.config.apiCorsOrigin : "*"
-    });
+      "Connection": "keep-alive"
+    };
+    if (this.config.apiCorsEnabled) {
+      headers["Access-Control-Allow-Origin"] = this.config.apiCorsOrigin;
+    }
+    res.writeHead(200, headers);
 
     // Send initial connection message
     res.write(": connected\n\n");
