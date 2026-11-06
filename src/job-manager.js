@@ -78,6 +78,8 @@ class JobManager extends EventEmitter {
     this.zmqTemplateRefreshPending = false;
     this.zmqTemplateRefreshInFlight = null;
     this.prevhashEpochSeq = 0;
+    this.templateFetchSeq = 0;
+    this.appliedTemplateFetchSeq = 0;
     this.templatePollFailureStreak = Math.max(0, Number(this.stats.templatePollFailureStreak || 0));
     this.lastTemplatePollFailureAt = 0;
     this.forceTemplateRefreshOnce = false;
@@ -163,6 +165,8 @@ class JobManager extends EventEmitter {
           const tpl = await this.rpc.getBlockTemplate(this.longpollId);
           longpollFailureStreak = 0;
           this.lastLongpollSuccessAt = nowMs();
+          // Longpoll answers when the tip changes, so its template is the newest one seen.
+          this.appliedTemplateFetchSeq = ++this.templateFetchSeq;
           this.handleTemplate(tpl, "longpoll");
         } catch (err) {
           longpollFailureStreak += 1;
@@ -397,6 +401,7 @@ class JobManager extends EventEmitter {
   async refreshTemplate(source) {
     // Measure actual RPC latency (not longpoll which blocks waiting for new blocks)
     const startTime = nowMs();
+    const fetchSeq = ++this.templateFetchSeq;
     let tpl;
     try {
       tpl = await this.rpc.getBlockTemplate(null);
@@ -410,6 +415,9 @@ class JobManager extends EventEmitter {
     this.recordRpcCallOutcome(true);
     this.recordTemplateFetchLatency(fetchMs);
     this.recordTemplateFetchSuccess(source, fetchMs);
+    // A fetch that started before one already applied may carry an older tip.
+    if (fetchSeq < this.appliedTemplateFetchSeq) return;
+    this.appliedTemplateFetchSeq = fetchSeq;
     this.handleTemplate(tpl, source);
   }
 
