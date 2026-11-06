@@ -27,6 +27,7 @@ const MAX_TOP_SHARES = 20;
 const MIN_SLICING_COMPATIBLE_MINERS = 2;
 const SHARE_METRIC_WINDOW_MS = 60 * 60 * 1000;
 const MAX_SHARE_LATENCY_SAMPLES = 6000;
+const SHARE_LATENCY_PERCENTILE_INTERVAL_MS = 1000;
 
 /**
  * Stratum V1 server for mining pool protocol.
@@ -58,6 +59,7 @@ class StratumServer extends EventEmitter {
     this.connectionAttempts = new Map(); // IP -> Array of timestamps
     this.rateLimitCleanupInterval = null;
     this.shareValidationLatencySamples = [];
+    this.shareLatencyPercentilesAt = 0;
     if (!Array.isArray(this.stats.recentShares)) {
       this.stats.recentShares = [];
     }
@@ -683,6 +685,7 @@ class StratumServer extends EventEmitter {
 
   resetRuntimeMetrics() {
     this.shareValidationLatencySamples = [];
+    this.shareLatencyPercentilesAt = 0;
     this.stats.shareValidationSamples1h = 0;
     this.stats.shareValidationLatencyP50Ms = 0;
     this.stats.shareValidationLatencyP95Ms = 0;
@@ -701,6 +704,10 @@ class StratumServer extends EventEmitter {
     if (this.shareValidationLatencySamples.length > MAX_SHARE_LATENCY_SAMPLES) {
       this.shareValidationLatencySamples.splice(0, this.shareValidationLatencySamples.length - MAX_SHARE_LATENCY_SAMPLES);
     }
+
+    // Sorting the whole window is too costly to repeat on every submit.
+    if ((t - this.shareLatencyPercentilesAt) < SHARE_LATENCY_PERCENTILE_INTERVAL_MS) return;
+    this.shareLatencyPercentilesAt = t;
 
     const samples = this.shareValidationLatencySamples.map((s) => s.ms).sort((a, b) => a - b);
     const total = samples.length;

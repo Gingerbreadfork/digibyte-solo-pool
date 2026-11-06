@@ -904,9 +904,9 @@ class JobManager extends EventEmitter {
       merkleBranchesRaw,
       merkleBranchesHex,
       submissions: new Set(),
-      submissionsRing: new Array(maxTrackedSubmissions),
+      submissionsRing: [],
+      submissionsRingCap: maxTrackedSubmissions,
       submissionsRingPos: 0,
-      submissionsRingSize: 0,
       prewarmScheduled: false
     };
 
@@ -1532,23 +1532,13 @@ function resolveTemplateTarget(template) {
 
 function rememberSubmission(job, dedupeKey) {
   const ring = job.submissionsRing;
-  if (!Array.isArray(ring) || ring.length === 0) {
-    job.submissions.add(dedupeKey);
-    return;
-  }
-
-  const cap = ring.length;
-  if (job.submissionsRingSize >= cap) {
-    const evicted = ring[job.submissionsRingPos];
-    if (evicted !== undefined) {
-      job.submissions.delete(evicted);
-    }
+  if (ring.length < job.submissionsRingCap) {
+    ring.push(dedupeKey);
   } else {
-    job.submissionsRingSize += 1;
+    job.submissions.delete(ring[job.submissionsRingPos]);
+    ring[job.submissionsRingPos] = dedupeKey;
+    job.submissionsRingPos = (job.submissionsRingPos + 1) % ring.length;
   }
-
-  ring[job.submissionsRingPos] = dedupeKey;
-  job.submissionsRingPos = (job.submissionsRingPos + 1) % cap;
   job.submissions.add(dedupeKey);
 }
 
