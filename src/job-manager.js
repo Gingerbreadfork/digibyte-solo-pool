@@ -1050,7 +1050,8 @@ class JobManager extends EventEmitter {
     if (submitResult === null) {
       this.stats.blocksFound += 1;
       const foundAt = Date.now();
-      const coinbaseTxid = Buffer.from(doubleSha256(Buffer.from(blockCoinbaseHex, "hex")))
+      // The txid hashes the coinbase without its witness section.
+      const coinbaseTxid = Buffer.from(doubleSha256(shareResult.coinbaseRaw))
         .reverse()
         .toString("hex");
       const rewardSats = Math.max(0, Math.floor(Number(job.template && job.template.coinbasevalue) || 0));
