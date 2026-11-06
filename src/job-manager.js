@@ -37,6 +37,8 @@ const BLOCK_STATUS_ORPHANED = "orphaned";
 const BLOCK_SUBMIT_ATTEMPTS = 3;
 const BLOCK_SUBMIT_TIMEOUT_MS = 15000;
 const BLOCK_SUBMIT_RETRY_DELAY_MS = 500;
+// Keeps share ntime inside the node's two-hour future limit, measured from the template's own time.
+const MAX_NTIME_AHEAD_SEC = 7000;
 const KNOWN_POOL_TAG_PATTERNS = [
   { name: "AntPool", re: /antpool|mined by antpool/i },
   { name: "NiceHash", re: /nicehash/i },
@@ -880,7 +882,7 @@ class JobManager extends EventEmitter {
       bitsHex: normalizeHex(template.bits).padStart(8, "0"),
       ntimeHex,
       minTime: Number(template.mintime || template.curtime || 0),
-      maxTime: Number(template.maxtime || (template.curtime || 0) + 600),
+      maxTime: Number(template.curtime || 0) + MAX_NTIME_AHEAD_SEC,
       coinbase1Hex: coinbasePieces.merkleCoinbase1Hex,
       coinbase1Raw: coinbasePieces.merkleCoinbase1Raw,
       coinbase2Hex: coinbasePieces.merkleCoinbase2Hex,
@@ -934,7 +936,7 @@ class JobManager extends EventEmitter {
     }
 
     const ntimeNum = Number.parseInt(ntime, 16);
-    if (Number.isNaN(ntimeNum) || ntimeNum < job.minTime || ntimeNum > job.maxTime + 7200) {
+    if (Number.isNaN(ntimeNum) || ntimeNum < job.minTime || ntimeNum > job.maxTime) {
       return reject("stale", "ntime out of range");
     }
 
