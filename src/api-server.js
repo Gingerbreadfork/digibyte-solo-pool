@@ -21,6 +21,7 @@ class ApiServer {
     this.stratumServer = stratumServer;
     this.server = null;
     this.startedAt = Date.now();
+    this.dashboardHtml = renderDashboardHtml(config);
 
     // SSE clients
     this.sseClients = new Set();
@@ -147,7 +148,7 @@ class ApiServer {
     res.on("finish", finishHandler);
 
     if (pathname === "/" || pathname === "/dashboard") {
-      return this.writeHtml(res, 200, renderDashboardHtml(this.config), {
+      return this.writeHtml(res, 200, this.dashboardHtml, {
         "Cache-Control": "no-store, max-age=0"
       });
     }
