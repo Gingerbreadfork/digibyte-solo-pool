@@ -11,7 +11,8 @@ COPY --chown=pooluser:pooluser package.json ./
 COPY --chown=pooluser:pooluser src ./src
 
 # Ensure runtime-writable app directory (for stats persistence under /app/data).
-RUN chown -R pooluser:pooluser /app
+# A new named volume mounted at /app/data copies this ownership.
+RUN mkdir -p /app/data && chown -R pooluser:pooluser /app
 
 # Switch to non-root user
 USER pooluser
