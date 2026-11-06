@@ -6,6 +6,9 @@ const fs = require("node:fs");
 const { renderDashboardHtml } = require("./dashboard-page");
 const { compactBitsToDifficulty } = require("./utils");
 
+const KNOWN_PATHS = new Set(["/", "/dashboard", "/favicon.ico", "/healthz", "/stats", "/events", "/metrics"]);
+const MAX_SSE_CLIENTS = 64;
+const MAX_SSE_BUFFERED_BYTES = 1024 * 1024;
 // Browsers cannot send this header cross-origin without a preflight that the API never allows.
 const RESET_HEADER = "x-pool-action";
 
@@ -132,7 +135,8 @@ class ApiServer {
 
     // Track metrics
     this.metrics.requestCount += 1;
-    this.metrics.requestsByPath[pathname] = (this.metrics.requestsByPath[pathname] || 0) + 1;
+    const metricPath = KNOWN_PATHS.has(pathname) ? pathname : "other";
+    this.metrics.requestsByPath[metricPath] = (this.metrics.requestsByPath[metricPath] || 0) + 1;
 
     // Handle request and track latency
     const finishHandler = () => {
@@ -250,6 +254,10 @@ class ApiServer {
   }
 
   handleSSE(req, res) {
+    if (this.sseClients.size >= MAX_SSE_CLIENTS) {
+      return this.writeJson(res, 503, { error: "too_many_event_streams" });
+    }
+
     const headers = {
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache",
@@ -304,6 +312,12 @@ class ApiServer {
     const deadClients = [];
 
     for (const client of this.sseClients) {
+      // A reader that stopped consuming would otherwise buffer every update in memory.
+      if (client.writableLength > MAX_SSE_BUFFERED_BYTES) {
+        deadClients.push(client);
+        client.destroy();
+        continue;
+      }
       try {
         client.write(message);
       } catch (err) {
