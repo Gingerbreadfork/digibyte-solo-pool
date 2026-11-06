@@ -608,12 +608,21 @@ class StratumServer extends EventEmitter {
     this.jobManager.maybePrewarmBlockCandidatePayload?.(share);
 
     if (share.isBlockCandidate) {
-      const blockResult = await this.jobManager.submitBlockCandidate(share, client);
-      if (!blockResult.accepted) {
-        this.logger.warn("Block candidate failed after share accepted", {
+      // The share is already acknowledged, so errors here must not reach the dispatch catch.
+      try {
+        const blockResult = await this.jobManager.submitBlockCandidate(share);
+        if (!blockResult.accepted) {
+          this.logger.warn("Block candidate failed after share accepted", {
+            worker: client.workerName,
+            blockHash: blockResult.blockHash,
+            reason: blockResult.nodeResult
+          });
+        }
+      } catch (err) {
+        this.logger.error("Block candidate submission crashed", {
           worker: client.workerName,
-          blockHash: blockResult.blockHash,
-          reason: blockResult.nodeResult
+          blockHash: share.shareHashHex,
+          error: err
         });
       }
     }

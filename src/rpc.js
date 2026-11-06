@@ -72,7 +72,9 @@ class RpcClient {
             return reject(new Error(`RPC JSON parse failed: ${err.message}`));
           }
           if (parsed.error) {
-            return reject(new Error(`RPC ${method} error: ${JSON.stringify(parsed.error)}`));
+            const err = new Error(`RPC ${method} error: ${JSON.stringify(parsed.error)}`);
+            err.rpcError = parsed.error;
+            return reject(err);
           }
           resolve(parsed.result);
         });
@@ -100,12 +102,12 @@ class RpcClient {
     return this.call("getblocktemplate", [request], { longpoll: Boolean(longpollId) });
   }
 
-  async submitBlock(blockHex, workId) {
+  async submitBlock(blockHex, workId, options = {}) {
     const params = [blockHex];
     if (workId) {
       params.push({ workid: String(workId) });
     }
-    return this.call("submitblock", params);
+    return this.call("submitblock", params, options);
   }
 
   async getBlockHeader(blockHash) {

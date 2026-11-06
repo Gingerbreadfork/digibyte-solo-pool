@@ -34,6 +34,9 @@ const ROLLING_METRIC_BUCKET_MS = 60 * 1000;
 const BLOCK_STATUS_PENDING = "pending";
 const BLOCK_STATUS_CONFIRMED = "confirmed";
 const BLOCK_STATUS_ORPHANED = "orphaned";
+const BLOCK_SUBMIT_ATTEMPTS = 3;
+const BLOCK_SUBMIT_TIMEOUT_MS = 15000;
+const BLOCK_SUBMIT_RETRY_DELAY_MS = 500;
 const KNOWN_POOL_TAG_PATTERNS = [
   { name: "AntPool", re: /antpool|mined by antpool/i },
   { name: "NiceHash", re: /nicehash/i },
@@ -1011,6 +1014,7 @@ class JobManager extends EventEmitter {
       coinbaseRaw,
       merkleRootRaw: merkleRoot,
       headerRaw: header,
+      extranonce1Hex: client.extranonce1Hex,
       extranonce2Hex: ex2,
       ntimeHex: ntime,
       nonceHex: nonce,
@@ -1020,10 +1024,10 @@ class JobManager extends EventEmitter {
     return result;
   }
 
-  async submitBlockCandidate(shareResult, client) {
-    const { job, extranonce2Hex } = shareResult;
+  async submitBlockCandidate(shareResult) {
+    const { job, extranonce1Hex, extranonce2Hex } = shareResult;
     const blockCoinbaseHex =
-      job.blockCoinbase1Hex + client.extranonce1Hex + extranonce2Hex + job.blockCoinbase2Hex;
+      job.blockCoinbase1Hex + extranonce1Hex + extranonce2Hex + job.blockCoinbase2Hex;
 
     const txCount = varIntBuffer(1 + job.transactions.length).toString("hex");
     const headerHex = (Buffer.isBuffer(shareResult.headerRaw)
@@ -1041,7 +1045,7 @@ class JobManager extends EventEmitter {
     ).toString("hex");
 
     const blockHex = headerHex + txCount + blockCoinbaseHex + getJoinedBlockTransactionsHex(job);
-    const submitResult = await this.rpc.submitBlock(blockHex, job.workId);
+    const submitResult = await this.submitBlockWithRetry(blockHex, job.workId, shareResult.shareHashHex);
 
     if (submitResult === null) {
       this.stats.blocksFound += 1;
@@ -1084,6 +1088,37 @@ class JobManager extends EventEmitter {
       reason: submitResult
     });
     return { accepted: false, blockHash: shareResult.shareHashHex, nodeResult: submitResult };
+  }
+
+  /**
+   * Submits a block, retrying transport failures. A timed-out attempt may still have
+   * reached the node, so a retry answered with "duplicate" counts as accepted.
+   */
+  async submitBlockWithRetry(blockHex, workId, blockHash) {
+    const timeoutMs = Math.max(BLOCK_SUBMIT_TIMEOUT_MS, Number(this.config.nodeRpcTimeoutMs) || 0);
+    let lastError = null;
+    for (let attempt = 1; attempt <= BLOCK_SUBMIT_ATTEMPTS; attempt += 1) {
+      try {
+        const result = await this.rpc.submitBlock(blockHex, workId, { timeoutMs });
+        if (attempt > 1 && result === "duplicate") return null;
+        return result;
+      } catch (err) {
+        if (err && err.rpcError) {
+          return `rpc-error: ${err.rpcError.message || JSON.stringify(err.rpcError)}`;
+        }
+        lastError = err;
+        this.logger.error("submitblock RPC failed", {
+          blockHash,
+          attempt,
+          maxAttempts: BLOCK_SUBMIT_ATTEMPTS,
+          error: err && err.message ? err.message : String(err)
+        });
+        if (attempt < BLOCK_SUBMIT_ATTEMPTS) {
+          await sleep(BLOCK_SUBMIT_RETRY_DELAY_MS);
+        }
+      }
+    }
+    return `submitblock failed: ${lastError && lastError.message ? lastError.message : "unknown error"}`;
   }
 
   maybePrewarmBlockCandidatePayload(shareResult) {
