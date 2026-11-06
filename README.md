@@ -157,6 +157,7 @@ Important on DigiByte multi-algo setups:
 - `GET /healthz` - Health check (returns 200 if pool has active job)
 - `GET /stats` - JSON stats snapshot (connections, shares, blocks, workers)
 - `GET /metrics` - Prometheus metrics (plaintext format)
+- `POST /reset` - Reset session stats (keeps all-time bests and found blocks). Requires the header `X-Pool-Action: reset`, which blocks cross-site requests from other web pages
 
 ## Security & Rate Limiting
 

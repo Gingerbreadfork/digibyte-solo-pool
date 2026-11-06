@@ -6,6 +6,9 @@ const fs = require("node:fs");
 const { renderDashboardHtml } = require("./dashboard-page");
 const { compactBitsToDifficulty } = require("./utils");
 
+// Browsers cannot send this header cross-origin without a preflight that the API never allows.
+const RESET_HEADER = "x-pool-action";
+
 class ApiServer {
   constructor(config, logger, stats, jobManager, stratumServer) {
     this.config = config;
@@ -120,6 +123,9 @@ class ApiServer {
 
     // Handle POST /reset endpoint
     if (req.method === "POST" && pathname === "/reset") {
+      if (req.headers[RESET_HEADER] !== "reset") {
+        return this.writeJson(res, 403, { error: "forbidden" });
+      }
       this.resetStats();
       return this.writeJson(res, 200, { success: true, message: "Stats reset successfully" });
     }

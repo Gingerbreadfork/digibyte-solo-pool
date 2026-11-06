@@ -2915,7 +2915,7 @@ function renderDashboardHtml(config) {
       e.target.style.opacity = '0.5';
 
       try {
-        const res = await fetch('/reset', { method: 'POST' });
+        const res = await fetch('/reset', { method: 'POST', headers: { 'X-Pool-Action': 'reset' } });
         const data = await res.json();
 
         if (data.success) {
