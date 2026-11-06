@@ -97,8 +97,12 @@ class ApiServer {
 
   handle(req, res) {
     const startTime = process.hrtime.bigint();
-    const url = new URL(req.url || "/", "http://localhost");
-    const pathname = url.pathname;
+    let pathname;
+    try {
+      pathname = new URL(req.url || "/", "http://localhost").pathname;
+    } catch (err) {
+      return this.writeJson(res, 400, { error: "bad_request" });
+    }
 
     // CORS headers
     if (this.config.apiCorsEnabled) {
@@ -138,13 +142,13 @@ class ApiServer {
       });
     }
 
-    if (url.pathname === "/favicon.ico") {
+    if (pathname === "/favicon.ico") {
       res.writeHead(204);
       res.end();
       return;
     }
 
-    if (url.pathname === "/healthz") {
+    if (pathname === "/healthz") {
       const now = Date.now();
       const job = this.jobManager.currentJobSnapshot();
       const connections = this.stratumServer.snapshot();
@@ -162,7 +166,7 @@ class ApiServer {
       });
     }
 
-    if (url.pathname === "/stats") {
+    if (pathname === "/stats") {
       const job = this.jobManager.currentJobSnapshot();
       const connections = this.stratumServer.snapshot();
       const uptimeSec = Math.floor((Date.now() - this.startedAt) / 1000);
@@ -187,7 +191,7 @@ class ApiServer {
       });
     }
 
-    if (url.pathname === "/events") {
+    if (pathname === "/events") {
       return this.handleSSE(req, res);
     }
 
