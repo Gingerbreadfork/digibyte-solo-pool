@@ -495,7 +495,15 @@ class StratumServer extends EventEmitter {
     client.workerName = workerName;       // e.g., "bitaxe1"
     client.workerFull = fullWorker;       // e.g., "DGBAddress123.bitaxe1"
     if (kv.d) {
-      this.setClientDifficulty(client, kv.d);
+      try {
+        this.setClientDifficulty(client, kv.d);
+      } catch (err) {
+        this.logger.warn("Ignoring invalid difficulty in miner password", {
+          clientId: client.id,
+          remote: client.remote,
+          value: String(kv.d).slice(0, 32)
+        });
+      }
     }
 
     this.logger.info("Miner authorized", {

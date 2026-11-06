@@ -22,7 +22,7 @@ class ApiServer {
 
     // Stats logging interval (log metrics every 30 seconds by default)
     this.statsLoggingInterval = null;
-    this.statsLoggingMs = parseInt(process.env.STATS_LOGGING_INTERVAL_MS || "30000", 10);
+    this.statsLoggingMs = config.statsLoggingIntervalMs;
 
     // Metrics histograms (simple buckets for latency tracking)
     this.metrics = {

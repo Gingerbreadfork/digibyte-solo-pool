@@ -782,7 +782,11 @@ class JobManager extends EventEmitter {
 
   async resolvePayoutScriptHex() {
     if (this.config.poolPayoutScriptHex) {
-      return normalizeHex(this.config.poolPayoutScriptHex);
+      const script = normalizeHex(this.config.poolPayoutScriptHex);
+      if (!script) {
+        throw new Error("POOL_PAYOUT_SCRIPT_HEX is empty");
+      }
+      return script;
     }
 
     const addr = this.config.poolPayoutAddress;

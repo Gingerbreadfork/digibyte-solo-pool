@@ -5,7 +5,8 @@ const {
   toInt,
   toFloat,
   splitRulesCsv,
-  normalizeHex
+  normalizeHex,
+  difficultyToTarget
 } = require("./utils");
 
 function loadConfig() {
@@ -59,7 +60,7 @@ function loadConfig() {
 
     poolPayoutAddress: process.env.POOL_PAYOUT_ADDRESS || "",
     poolPayoutAddressExplorerBase: process.env.POOL_PAYOUT_ADDRESS_EXPLORER_BASE || "https://digiexplorer.info/address/",
-    poolPayoutScriptHex: process.env.POOL_PAYOUT_SCRIPT_HEX || "",
+    poolPayoutScriptHex: (process.env.POOL_PAYOUT_SCRIPT_HEX || "").trim(),
     poolTag: process.env.POOL_TAG || "/gbf-solo/",
 
     allowAnyUser: toBool(process.env.ALLOW_ANY_USER, true),
@@ -114,6 +115,7 @@ function loadConfig() {
     debugShareValidation: toBool(process.env.DEBUG_SHARE_VALIDATION, false),
     logNewJobs: toBool(process.env.LOG_NEW_JOBS, false),
     logPoolStatsSnapshot: toBool(process.env.LOG_POOL_STATS_SNAPSHOT, false),
+    statsLoggingIntervalMs: toInt(process.env.STATS_LOGGING_INTERVAL_MS, 30000),
     logLevel: process.env.LOG_LEVEL || "info"
   };
 
@@ -134,6 +136,14 @@ function loadConfig() {
   }
   if (cfg.varDiffRetargetEveryShares < 1) {
     throw new Error("VARDIFF_RETARGET_EVERY_SHARES must be >= 1");
+  }
+  try {
+    difficultyToTarget(cfg.baseDifficulty);
+  } catch (err) {
+    throw new Error(`BASE_DIFFICULTY must be a positive decimal number (got '${cfg.baseDifficulty}')`);
+  }
+  if (cfg.statsLoggingIntervalMs < 1000) {
+    throw new Error("STATS_LOGGING_INTERVAL_MS must be >= 1000");
   }
   cfg.versionRollingMaskHex = normalizeHex(String(cfg.versionRollingMaskHex || "")).padStart(8, "0");
   if (cfg.versionRollingMaskHex.length !== 8) {
