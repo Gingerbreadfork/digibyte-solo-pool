@@ -309,9 +309,11 @@ src/
 ├── stratum-server.js     # Stratum V1 protocol server
 ├── api-server.js         # HTTP/HTTPS API server
 ├── dashboard-page.js     # Dashboard HTML/CSS/JS
+├── stats-persistence.js  # Stats snapshot and write-ahead log
+├── zmq-hashblock-subscriber.js # ZMQ new-block notifications
 ├── coinbase-builder.js   # Coinbase transaction construction
 ├── merkle.js             # Merkle tree operations
-└── share-validator.js    # Share validation and header building
+└── share-crypto.js       # Block header building and version rolling
 ```
 
 ### Making Changes
