@@ -1407,16 +1407,53 @@ function countTemplateTransactions(template) {
   return Array.isArray(template && template.transactions) ? template.transactions.length : 0;
 }
 
+/**
+ * Keeps the first txLimit transactions. Dropped transactions take their fees with them
+ * and change the witness root, so both are recomputed; returns null when that is not possible.
+ */
 function buildTruncatedTemplate(template, txLimit) {
   const txs = Array.isArray(template && template.transactions) ? template.transactions : [];
   const limit = Math.max(0, Math.floor(Number(txLimit || 0)));
   if (txs.length <= limit) {
     return null;
   }
-  return {
+
+  const coinbaseValue = Number(template.coinbasevalue);
+  if (!Number.isSafeInteger(coinbaseValue) || coinbaseValue < 0) return null;
+  let droppedFees = 0;
+  for (let i = limit; i < txs.length; i += 1) {
+    const fee = txs[i] && txs[i].fee;
+    if (!Number.isSafeInteger(fee) || fee < 0) return null;
+    droppedFees += fee;
+  }
+  if (droppedFees > coinbaseValue) return null;
+
+  const kept = txs.slice(0, limit);
+  const truncated = {
     ...template,
-    transactions: txs.slice(0, limit)
+    transactions: kept,
+    coinbasevalue: coinbaseValue - droppedFees
   };
+  if (template.default_witness_commitment) {
+    const commitment = buildWitnessCommitmentScript(kept);
+    if (!commitment) return null;
+    truncated.default_witness_commitment = commitment;
+  }
+  return truncated;
+}
+
+/** BIP141 commitment output script for the given template transactions. */
+function buildWitnessCommitmentScript(txs) {
+  const wtxidLeaves = [];
+  for (const tx of txs) {
+    if (!tx || typeof tx.hash !== "string") return "";
+    wtxidLeaves.push(Buffer.from(reverseHex(tx.hash), "hex"));
+  }
+  // The coinbase wtxid and the witness reserved value are both 32 zero bytes.
+  const zero = Buffer.alloc(32, 0);
+  const witnessRoot = computeMerkleRootFromBranches(zero, buildCoinbaseMerkleBranches(wtxidLeaves));
+  const commitment = doubleSha256(Buffer.concat([witnessRoot, zero]));
+  return `6a24aa21a9ed${commitment.toString("hex")}`;
 }
 
 function getTemplateTxidHex(tx) {
